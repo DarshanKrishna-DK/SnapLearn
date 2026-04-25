@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { Send, RotateCcw, BookOpen, Lightbulb, Type, Image, Mic } from 'lucide-react';
+import { Send, RotateCcw, BookOpen, Lightbulb, Type, Image, Mic, Zap, ArrowRight } from 'lucide-react';
 
 // Components
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -8,6 +8,8 @@ import AnimatedBlackboard from '@/components/AnimatedBlackboard';
 import QuestionInput from '@/components/QuestionInput';
 import ImageUpload from '@/components/ImageUpload';
 import VoiceInput from '@/components/VoiceInput';
+import AdvancedTutorPage from '@/components/AdvancedTutorPage';
+import EnhancedVideoPage from '@/components/EnhancedVideoPage';
 
 // Utils and types
 import { apiClient, handleAPIError } from '@/utils/api';
@@ -37,6 +39,12 @@ const TutorPage: React.FC<TutorPageProps> = ({
   
   // Phase 2: Input modality state
   const [inputMode, setInputMode] = useState<'text' | 'image' | 'voice'>('text');
+  
+  // Phase 3: Advanced mode toggle
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  
+  // Phase 4: Video mode toggle
+  const [isVideoMode, setIsVideoMode] = useState(false);
 
   // Handle question submission
   const handleQuestionSubmit = useCallback(async (question: string) => {
@@ -133,17 +141,151 @@ const TutorPage: React.FC<TutorPageProps> = ({
 
   const starterQuestions = getStarterQuestions(gradeLevel);
 
+  // Render Enhanced Video Page if video mode is enabled
+  if (isVideoMode) {
+    return (
+      <div className="space-y-6">
+        {/* Mode Switch Header */}
+        <div className="flex justify-between items-center">
+          <button
+            onClick={() => setIsVideoMode(false)}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            Back to Basic Mode
+          </button>
+          <div className="flex items-center gap-2 bg-gradient-to-r from-blue-100 to-green-100 px-4 py-2 rounded-lg">
+            <Zap className="w-5 h-5 text-blue-600" />
+            <span className="font-medium text-blue-800">Enhanced Video Generation</span>
+          </div>
+        </div>
+
+        <EnhancedVideoPage 
+          studentId={studentId}
+          gradeLevel={gradeLevel}
+          language={language}
+          conversationContext={explanation ? { response: explanation } as any : undefined}
+        />
+      </div>
+    );
+  }
+
+  // Render Advanced Tutor if advanced mode is enabled
+  if (isAdvancedMode) {
+    return (
+      <div className="space-y-6">
+        {/* Mode Switch Header */}
+        <div className="flex justify-between items-center">
+          <button
+            onClick={() => setIsAdvancedMode(false)}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            Back to Basic Mode
+          </button>
+          <div className="flex items-center gap-2 bg-gradient-to-r from-purple-100 to-blue-100 px-4 py-2 rounded-lg">
+            <Zap className="w-5 h-5 text-purple-600" />
+            <span className="font-medium text-purple-800">Advanced AI Tutor</span>
+          </div>
+        </div>
+
+        <AdvancedTutorPage 
+          studentId={studentId}
+          gradeLevel={gradeLevel}
+          language={language}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          AI Tutor with Animated Blackboard
-        </h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Ask any question and get a personalized explanation with an animated blackboard demonstration.
-          Designed for Grade {gradeLevel === 'K' ? 'K' : gradeLevel} level learning.
-        </p>
+        <div className="flex justify-between items-start mb-4">
+          <div></div> {/* Spacer */}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              AI Tutor with Animated Blackboard
+            </h1>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Ask any question and get a personalized explanation with an animated blackboard demonstration.
+              Designed for Grade {gradeLevel === 'K' ? 'K' : gradeLevel} level learning.
+            </p>
+          </div>
+          
+          {/* Mode Toggles */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setIsAdvancedMode(true)}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 transform hover:scale-105 flex items-center gap-2 shadow-lg"
+            >
+              <Zap className="w-4 h-4" />
+              <span className="text-sm font-medium">Advanced Mode</span>
+            </button>
+            
+            <button
+              onClick={() => setIsVideoMode(true)}
+              className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-green-700 transition-all duration-200 transform hover:scale-105 flex items-center gap-2 shadow-lg"
+            >
+              <Lightbulb className="w-4 h-4" />
+              <span className="text-sm font-medium">Video Mode</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Feature Highlights for Advanced Modes */}
+        {!explanation && !isGenerating && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Zap className="w-5 h-5 text-purple-600" />
+                <h3 className="font-semibold text-purple-900">Advanced AI Tutor</h3>
+              </div>
+              <p className="text-sm text-purple-800 mb-3">
+                Experience conversation-based learning with adaptive difficulty and real-time analysis:
+              </p>
+              <div className="grid grid-cols-1 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span className="text-purple-700">Multi-turn conversations</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-700">Adaptive difficulty system</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-green-700">Real-time confusion detection</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Lightbulb className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-blue-900">Enhanced Video Generation</h3>
+              </div>
+              <p className="text-sm text-blue-800 mb-3">
+                Create personalized educational videos with AI-powered animations and analytics:
+              </p>
+              <div className="grid grid-cols-1 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-700">Context-aware video generation</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-green-700">Batch learning path videos</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  <span className="text-yellow-700">Real-time engagement analytics</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Question Input - Phase 2 Enhanced */}

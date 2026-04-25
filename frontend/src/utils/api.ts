@@ -15,6 +15,20 @@ import {
   VoiceUploadRequest,
   MultiModalRequest,
   ProcessedInputResponse,
+  // Phase 3 types
+  ConversationRequest,
+  ConversationResponse,
+  AssessmentAnalytics,
+  DifficultyAdaptationRequest,
+  DifficultyAdaptationResponse,
+  LearningPathRequest,
+  LearningPathResponse,
+  ConfusionDetectionRequest,
+  ConfusionDetectionResponse,
+  ParentDashboardData,
+  StudyRecommendationRequest,
+  StudyRecommendationResponse,
+  LearningAnalytics,
 } from '@/types';
 
 class SnapLearnAPIClient {
@@ -147,6 +161,185 @@ class SnapLearnAPIClient {
   async processText(request: MultiModalRequest): Promise<ProcessedInputResponse> {
     const response = await this.client.post('/api/process-text', request);
     return response.data;
+  }
+
+  // Phase 3: Advanced Tutoring Features
+
+  // Conversation Management
+  async startConversation(request: ConversationRequest): Promise<ConversationResponse> {
+    const response = await this.client.post('/api/conversation/start', request);
+    return response.data;
+  }
+
+  async continueConversation(request: ConversationRequest): Promise<ConversationResponse> {
+    const response = await this.client.post('/api/conversation/continue', request);
+    return response.data;
+  }
+
+  // Advanced Assessment
+  async comprehensiveAssessment(request: AssessmentRequest): Promise<any> {
+    const response = await this.client.post('/api/assessment/comprehensive', request);
+    return response.data;
+  }
+
+  async getAssessmentAnalytics(studentId: string): Promise<AssessmentAnalytics> {
+    const response = await this.client.get(`/api/assessment/analytics/${studentId}`);
+    return response.data;
+  }
+
+  // Adaptive Difficulty
+  async adaptDifficulty(request: DifficultyAdaptationRequest): Promise<DifficultyAdaptationResponse> {
+    const response = await this.client.post('/api/difficulty/adapt', request);
+    return response.data;
+  }
+
+  // Learning Path Optimization
+  async optimizeLearningPath(request: LearningPathRequest): Promise<LearningPathResponse> {
+    const response = await this.client.post('/api/learning-path/optimize', request);
+    return response.data;
+  }
+
+  // Confusion Detection
+  async detectConfusion(request: ConfusionDetectionRequest): Promise<ConfusionDetectionResponse> {
+    const response = await this.client.post('/api/confusion/detect', request);
+    return response.data;
+  }
+
+  // Parent/Teacher Dashboard
+  async getParentDashboard(studentId: string, days: number = 7): Promise<ParentDashboardData> {
+    const response = await this.client.get(`/api/dashboard/parent/${studentId}?days=${days}`);
+    return response.data;
+  }
+
+  // Study Recommendations
+  async getStudyRecommendations(request: StudyRecommendationRequest): Promise<StudyRecommendationResponse> {
+    const response = await this.client.post('/api/recommendations/study', request);
+    return response.data;
+  }
+
+  // Learning Analytics
+  async getLearningAnalytics(studentId: string, period: string = 'week'): Promise<LearningAnalytics> {
+    const response = await this.client.get(`/api/analytics/learning/${studentId}?period=${period}`);
+    return response.data;
+  }
+
+  // Phase 4: Enhanced Video Generation & Analytics
+
+  // Contextual Video Generation
+  async generateContextualVideo(params: {
+    topic: string;
+    student_id: string;
+    grade_level: string;
+    language?: string;
+    conversation_context?: any;
+    video_quality?: string;
+    video_format?: string;
+    animation_style?: string;
+    target_duration?: number;
+  }): Promise<any> {
+    const response = await this.client.post('/api/video/generate-contextual', null, { params });
+    return response.data;
+  }
+
+  // Batch Video Generation
+  async createBatchGeneration(request: LearningPathRequest): Promise<{
+    batch_id: string;
+    message: string;
+    estimated_completion: string;
+  }> {
+    const response = await this.client.post('/api/video/batch-generate', request);
+    return response.data;
+  }
+
+  async getBatchStatus(batchId: string): Promise<any> {
+    const response = await this.client.get(`/api/video/batch-status/${batchId}`);
+    return response.data;
+  }
+
+  async cancelBatch(batchId: string): Promise<{ message: string }> {
+    const response = await this.client.delete(`/api/video/batch-cancel/${batchId}`);
+    return response.data;
+  }
+
+  async getBatchAnalytics(): Promise<any> {
+    const response = await this.client.get('/api/video/batch-analytics');
+    return response.data;
+  }
+
+  // Video Analytics
+  async startVideoSession(videoId: string, studentId: string, metadata?: any): Promise<{ session_id: string }> {
+    const response = await this.client.post('/api/video/session/start', {
+      video_id: videoId,
+      student_id: studentId,
+      video_metadata: metadata
+    });
+    return response.data;
+  }
+
+  async trackVideoInteraction(event: {
+    session_id: string;
+    interaction_type: string;
+    video_position: number;
+    duration?: number;
+    metadata?: any;
+  }): Promise<{ message: string }> {
+    const response = await this.client.post('/api/video/session/track', event);
+    return response.data;
+  }
+
+  async endVideoSession(sessionId: string, finalPosition?: number): Promise<any> {
+    const response = await this.client.post(`/api/video/session/end/${sessionId}`, {
+      final_position: finalPosition
+    });
+    return response.data;
+  }
+
+  async getVideoAnalytics(videoId: string): Promise<any> {
+    const response = await this.client.get(`/api/video/analytics/${videoId}`);
+    return response.data;
+  }
+
+  async getStudentVideoAnalytics(studentId: string, days: number = 30): Promise<any> {
+    const response = await this.client.get(`/api/video/analytics/student/${studentId}?days=${days}`);
+    return response.data;
+  }
+
+  // Advanced Video Features
+  async generateStyledVideo(params: {
+    topic: string;
+    student_id: string;
+    style_preferences: Record<string, any>;
+    quality_settings?: Record<string, any>;
+  }): Promise<any> {
+    const response = await this.client.post('/api/video/generate-with-style', params);
+    return response.data;
+  }
+
+  async submitVideoFeedback(feedback: {
+    video_id: string;
+    student_id: string;
+    rating: number;
+    feedback_text?: string;
+    improvement_suggestions?: string[];
+  }): Promise<{ feedback_id: string }> {
+    const response = await this.client.post('/api/video/feedback', feedback);
+    return response.data;
+  }
+
+  async getVideoRecommendations(studentId: string, limit: number = 10): Promise<{
+    student_id: string;
+    recommendations: any[];
+    personalization_basis: Record<string, any>;
+  }> {
+    const response = await this.client.get(`/api/video/recommendations/${studentId}?limit=${limit}`);
+    return response.data;
+  }
+
+  async getVideoThumbnail(videoId: string): Promise<string> {
+    const response = await this.client.get(`/api/video/thumbnails/${videoId}`, {
+      responseType: 'blob'
+    });
+    return URL.createObjectURL(response.data);
   }
 
   // Utility methods

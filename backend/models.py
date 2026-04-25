@@ -219,3 +219,220 @@ class VideoGenerationStatus(BaseModel):
     progress_percentage: float = Field(default=0.0, ge=0.0, le=100.0, description="Progress percentage")
     estimated_completion_seconds: Optional[int] = Field(None, description="Estimated time to completion")
     error_message: Optional[str] = Field(None, description="Error message if failed")
+
+# Phase 3 Models - Advanced Tutoring and Adaptive Learning
+
+class ConversationRequest(BaseModel):
+    """Request to start or continue a conversation"""
+    student_id: str = Field(..., description="Unique student identifier")
+    input_text: str = Field(..., description="Student input text")
+    conversation_id: Optional[str] = Field(None, description="Existing conversation ID to continue")
+    input_type: str = Field(default="question", description="Type of input: question, answer, clarification")
+    context: Optional[str] = Field(None, description="Additional context")
+
+class ConversationResponse(BaseModel):
+    """Response from conversation engine"""
+    conversation_id: str = Field(..., description="Unique conversation identifier")
+    response: ExplanationResponse = Field(..., description="AI tutor response")
+    state: str = Field(..., description="Current conversation state")
+    turn_count: int = Field(..., description="Number of turns in conversation")
+    learning_insights: Dict[str, Any] = Field(..., description="Insights about learning progress")
+    recommendations: List[str] = Field(default_factory=list, description="Study recommendations")
+    next_action: Optional[str] = Field(None, description="Suggested next action")
+
+class AssessmentAnalytics(BaseModel):
+    """Advanced assessment analytics"""
+    student_id: str = Field(..., description="Student identifier")
+    total_assessments: int = Field(..., description="Total number of assessments")
+    accuracy_trend: List[float] = Field(..., description="Accuracy over time")
+    mistake_patterns: Dict[str, int] = Field(..., description="Frequency of mistake types")
+    improvement_areas: List[str] = Field(..., description="Areas needing improvement")
+    strengths: List[str] = Field(..., description="Identified strengths")
+    intervention_recommendations: List[str] = Field(..., description="Recommended interventions")
+
+class DifficultyAdaptationRequest(BaseModel):
+    """Request for difficulty adaptation analysis"""
+    student_id: str = Field(..., description="Student identifier")
+    current_difficulty: str = Field(..., description="Current difficulty level")
+    recent_performance: Dict[str, Any] = Field(..., description="Recent performance data")
+    topic: str = Field(..., description="Current topic")
+
+class DifficultyAdaptationResponse(BaseModel):
+    """Response with difficulty adaptation recommendations"""
+    recommended_difficulty: str = Field(..., description="Recommended difficulty level")
+    adaptation_reason: str = Field(..., description="Reason for adaptation")
+    confidence: float = Field(..., description="Confidence in recommendation")
+    adapted_content: Dict[str, Any] = Field(..., description="Content adapted to new difficulty")
+    teaching_strategies: List[str] = Field(..., description="Recommended teaching strategies")
+
+class LearningPathRequest(BaseModel):
+    """Request for learning path optimization"""
+    student_id: str = Field(..., description="Student identifier")
+    target_topics: List[str] = Field(..., description="Topics to learn")
+    time_available: int = Field(..., description="Available time in minutes")
+    preferences: Dict[str, Any] = Field(default_factory=dict, description="Learning preferences")
+
+class LearningPathResponse(BaseModel):
+    """Optimized learning path response"""
+    path_id: str = Field(..., description="Learning path identifier")
+    recommended_sequence: List[Dict[str, Any]] = Field(..., description="Ordered learning sequence")
+    estimated_duration: int = Field(..., description="Estimated completion time in minutes")
+    difficulty_progression: List[str] = Field(..., description="Difficulty level progression")
+    checkpoint_assessments: List[Dict[str, Any]] = Field(..., description="Assessment checkpoints")
+    personalization_notes: List[str] = Field(..., description="Personalization explanations")
+
+class ConfusionDetectionRequest(BaseModel):
+    """Request for real-time confusion detection"""
+    student_id: str = Field(..., description="Student identifier")
+    interaction_data: Dict[str, Any] = Field(..., description="Real-time interaction data")
+    response_time: float = Field(..., description="Response time in seconds")
+    response_text: str = Field(..., description="Student response text")
+
+class ConfusionDetectionResponse(BaseModel):
+    """Confusion detection analysis response"""
+    confusion_detected: bool = Field(..., description="Whether confusion is detected")
+    confidence_score: float = Field(..., description="Confidence in detection")
+    confusion_indicators: List[str] = Field(..., description="Specific indicators of confusion")
+    intervention_needed: bool = Field(..., description="Whether immediate intervention is needed")
+    suggested_interventions: List[str] = Field(..., description="Suggested intervention strategies")
+    emotion_analysis: Dict[str, float] = Field(default_factory=dict, description="Detected emotional states")
+
+class ExplanationStyleRequest(BaseModel):
+    """Request for explanation style adaptation"""
+    student_id: str = Field(..., description="Student identifier")
+    topic: str = Field(..., description="Topic to explain")
+    current_style: str = Field(..., description="Current explanation style")
+    adaptation_reason: str = Field(..., description="Reason for style change")
+    target_style: str = Field(..., description="Target explanation style")
+
+class ExplanationStyleResponse(BaseModel):
+    """Response with adapted explanation style"""
+    adapted_explanation: ExplanationResponse = Field(..., description="Explanation in new style")
+    style_comparison: Dict[str, str] = Field(..., description="Comparison of styles")
+    effectiveness_prediction: float = Field(..., description="Predicted effectiveness of new style")
+
+class ParentDashboardData(BaseModel):
+    """Data for parent/teacher dashboard"""
+    student_id: str = Field(..., description="Student identifier")
+    learning_summary: Dict[str, Any] = Field(..., description="Overall learning summary")
+    recent_activities: List[Dict[str, Any]] = Field(..., description="Recent learning activities")
+    progress_metrics: Dict[str, float] = Field(..., description="Progress metrics")
+    areas_of_strength: List[str] = Field(..., description="Student strengths")
+    areas_needing_support: List[str] = Field(..., description="Areas needing support")
+    recommendations_for_parents: List[str] = Field(..., description="Recommendations for parents")
+    time_spent_learning: int = Field(..., description="Total time spent learning in minutes")
+    engagement_trend: List[float] = Field(..., description="Engagement levels over time")
+
+class StudyRecommendationRequest(BaseModel):
+    """Request for AI-powered study recommendations"""
+    student_id: str = Field(..., description="Student identifier")
+    available_time: int = Field(..., description="Available study time in minutes")
+    subject_preferences: List[str] = Field(default_factory=list, description="Preferred subjects")
+    difficulty_preference: str = Field(default="adaptive", description="Preferred difficulty")
+
+class StudyRecommendationResponse(BaseModel):
+    """AI-powered study recommendations"""
+    recommended_activities: List[Dict[str, Any]] = Field(..., description="Recommended study activities")
+    personalized_schedule: Dict[str, Any] = Field(..., description="Personalized study schedule")
+    focus_areas: List[str] = Field(..., description="Areas to focus on")
+    estimated_improvement: Dict[str, float] = Field(..., description="Estimated improvement predictions")
+    motivational_message: str = Field(..., description="Personalized motivational message")
+    reminder_suggestions: List[str] = Field(..., description="Study reminder suggestions")
+
+# Analytics and Reporting Models
+class LearningAnalytics(BaseModel):
+    """Comprehensive learning analytics"""
+    student_id: str = Field(..., description="Student identifier")
+    time_period: str = Field(..., description="Analytics time period")
+    total_sessions: int = Field(..., description="Total learning sessions")
+    total_time_minutes: int = Field(..., description="Total time spent learning")
+    concepts_mastered: List[str] = Field(..., description="Concepts mastered in period")
+    accuracy_metrics: Dict[str, float] = Field(..., description="Accuracy metrics by topic")
+    engagement_metrics: Dict[str, float] = Field(..., description="Engagement metrics")
+    difficulty_progression: List[Dict[str, Any]] = Field(..., description="Difficulty level changes")
+    learning_velocity: float = Field(..., description="Rate of learning progress")
+    prediction_models: Dict[str, Any] = Field(..., description="Predictive analytics")
+
+# Phase 4 Models - Enhanced Video Generation & Analytics
+
+class LearningPathRequest(BaseModel):
+    """Request for creating a learning path"""
+    student_id: str = Field(..., description="Student identifier")
+    target_topics: List[str] = Field(..., description="Topics to include in learning path")
+    time_available: int = Field(..., description="Available time in minutes")
+    preferences: Dict[str, Any] = Field(default_factory=dict, description="Learning preferences")
+
+class LearningPathResponse(BaseModel):
+    """Response containing optimized learning path"""
+    path_id: str = Field(..., description="Unique path identifier")
+    recommended_sequence: List[Dict[str, Any]] = Field(..., description="Recommended topic sequence")
+    estimated_duration: int = Field(..., description="Estimated total duration in minutes")
+    difficulty_progression: List[str] = Field(..., description="Difficulty level progression")
+    checkpoint_assessments: List[Dict[str, Any]] = Field(default_factory=list, description="Assessment checkpoints")
+    personalization_notes: List[str] = Field(default_factory=list, description="Personalization explanations")
+
+class VideoGenerationRequest(BaseModel):
+    """Request for contextual video generation"""
+    topic: str = Field(..., description="Video topic")
+    student_id: str = Field(..., description="Student identifier") 
+    grade_level: str = Field(..., description="Student grade level")
+    language: Optional[str] = Field(default="en", description="Video language")
+    conversation_context: Optional[Dict[str, Any]] = Field(default=None, description="Conversation context")
+    video_quality: Optional[str] = Field(default="high", description="Video quality setting")
+    video_format: Optional[str] = Field(default="mp4", description="Video format")
+    animation_style: Optional[str] = Field(default="modern", description="Animation style")
+    target_duration: Optional[int] = Field(default=180, description="Target duration in seconds")
+
+class EnhancedVideoResponse(BaseModel):
+    """Enhanced video generation response with Phase 4 features"""
+    video_url: str = Field(..., description="Video file URL")
+    video_id: str = Field(..., description="Unique video identifier")
+    topic: str = Field(..., description="Video topic")
+    duration_seconds: Optional[float] = Field(None, description="Video duration in seconds")
+    file_size_mb: Optional[float] = Field(None, description="Video file size in MB")
+    manim_script: str = Field(..., description="Generated Manim script")
+    generation_time_seconds: float = Field(..., description="Time taken to generate video")
+    timestamp: Optional[datetime] = Field(default_factory=datetime.now, description="Creation timestamp")
+    
+    # Phase 4 Enhancements
+    video_variants: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Alternative quality/format versions")
+    thumbnail_url: Optional[str] = Field(None, description="Video thumbnail URL")
+    learning_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Learning context used")
+    script_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Script analysis metadata")
+    animation_style: Optional[str] = Field(None, description="Applied animation style")
+    difficulty_level: Optional[str] = Field(None, description="Content difficulty level")
+    personalization_applied: Optional[List[str]] = Field(default_factory=list, description="Applied personalizations")
+    video_analytics: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Initial video analytics")
+    conceptual_map: Optional[List[str]] = Field(default_factory=list, description="Concepts covered in video")
+    interactive_elements: Optional[List[str]] = Field(default_factory=list, description="Interactive elements included")
+
+class VideoInteractionEvent(BaseModel):
+    """Video interaction tracking event"""
+    session_id: str = Field(..., description="Video session identifier")
+    interaction_type: str = Field(..., description="Type of interaction (play, pause, seek, etc.)")
+    video_position: float = Field(..., description="Position in video (seconds)")
+    duration: Optional[float] = Field(None, description="Duration of interaction if applicable")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional interaction metadata")
+
+class VideoSessionStart(BaseModel):
+    """Start video session request"""
+    video_id: str = Field(..., description="Video identifier")
+    student_id: str = Field(..., description="Student identifier")
+    video_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Video metadata")
+
+class VideoFeedback(BaseModel):
+    """Video feedback submission"""
+    video_id: str = Field(..., description="Video identifier")
+    student_id: str = Field(..., description="Student identifier")
+    rating: float = Field(..., ge=1, le=5, description="Video rating (1-5 stars)")
+    feedback_text: Optional[str] = Field(None, description="Optional feedback text")
+    improvement_suggestions: Optional[List[str]] = Field(default_factory=list, description="Improvement suggestions")
+
+class VideoRecommendation(BaseModel):
+    """Personalized video recommendation"""
+    topic: str = Field(..., description="Recommended topic")
+    reason: str = Field(..., description="Reason for recommendation")
+    priority: str = Field(..., description="Recommendation priority (low, medium, high)")
+    estimated_duration: int = Field(..., description="Estimated video duration in seconds")
+    difficulty: str = Field(..., description="Content difficulty level")
+    thumbnail_url: Optional[str] = Field(None, description="Recommendation thumbnail URL")

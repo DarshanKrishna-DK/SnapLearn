@@ -2,11 +2,27 @@
 Utility functions for SnapLearn AI Backend
 """
 
-import os
+import asyncio
 import logging
+import os
+import shutil
 import sys
-from typing import Dict, Any, List
+import threading
 from pathlib import Path
+from typing import Any, Coroutine, Dict, List
+
+
+def schedule_async_init(coro: Coroutine[Any, Any, Any]) -> None:
+    """Run a one-shot init coroutine: attach to running loop or start a short-lived loop in a daemon thread."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        def runner() -> None:
+            asyncio.run(coro)
+
+        threading.Thread(target=runner, daemon=True).start()
+    else:
+        asyncio.create_task(coro)
 
 def setup_logging():
     """Setup logging configuration"""
@@ -118,6 +134,21 @@ def validate_environment() -> Dict[str, Any]:
                 validation_results["valid"] = False
         else:
             validation_results["environment"][f"dir_{path.name}"] = "✓ Exists"
+
+    # Check external tools for video generation
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        validation_results["environment"]["ffmpeg"] = "✓ Available"
+    else:
+        validation_results["environment"]["ffmpeg"] = "✗ Missing (install ffmpeg and add to PATH)"
+        validation_results["warnings"].append("ffmpeg not found. Manim rendering may fail without it.")
+
+    latex_path = shutil.which("latex") or shutil.which("xelatex")
+    if latex_path:
+        validation_results["environment"]["latex"] = "✓ Available"
+    else:
+        validation_results["environment"]["latex"] = "✗ Missing (install TeX Live for MathTex)"
+        validation_results["warnings"].append("LaTeX not found. MathTex rendering may fail.")
     
     return validation_results
 
@@ -248,12 +279,14 @@ MAX_INTERACTION_HISTORY=1000
         print(".env file already exists")
 
 def load_environment():
-    """Load environment variables from .env file"""
-    
+    """Load environment variables from .env file (same directory as this package)."""
+
     try:
         from dotenv import load_dotenv
-        load_dotenv()
-        print("Loaded environment variables from .env file")
+
+        env_path = Path(__file__).resolve().parent / ".env"
+        load_dotenv(env_path)
+        print(f"Loaded environment variables from {env_path}")
     except ImportError:
         print("python-dotenv not installed. Using system environment variables only.")
         print("Install with: pip install python-dotenv")

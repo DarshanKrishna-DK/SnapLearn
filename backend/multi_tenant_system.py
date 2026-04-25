@@ -5,7 +5,6 @@ Production-ready multi-tenancy, authentication, and authorization
 
 import os
 import logging
-import asyncio
 import json
 import uuid
 import hashlib
@@ -20,6 +19,8 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import redis
+
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ class MultiTenantSystem:
         # Initialize system
         self._init_default_organizations()
         self._init_role_permissions()
-        asyncio.create_task(self._init_redis())
+        schedule_async_init(self._init_redis())
         
         logger.info("Multi-tenant system initialized with advanced security")
     

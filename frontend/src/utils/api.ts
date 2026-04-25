@@ -237,7 +237,7 @@ class SnapLearnAPIClient {
     animation_style?: string;
     target_duration?: number;
   }): Promise<any> {
-    const response = await this.client.post('/api/video/generate-contextual', null, { params });
+    const response = await this.client.post('/api/video/generate-contextual', params);
     return response.data;
   }
 
@@ -489,18 +489,16 @@ export const api = {
 
   // Health check with timeout
   healthCheck: async (timeout: number = 5000): Promise<boolean> => {
+    const originalTimeout = apiClient['client'].defaults.timeout;
+    apiClient.updateTimeout(timeout);
+
     try {
-      const originalTimeout = apiClient['client'].defaults.timeout;
-      apiClient.updateTimeout(timeout);
-      
       await apiClient.healthCheck();
-      
-      // Restore original timeout
-      apiClient.updateTimeout(originalTimeout || 60000);
-      
       return true;
     } catch (error) {
       return false;
+    } finally {
+      apiClient.updateTimeout(originalTimeout || 60000);
     }
   },
 };

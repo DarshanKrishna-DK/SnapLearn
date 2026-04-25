@@ -36,6 +36,7 @@ wheels/
 .codex/
 config/
 .zed/
+Reference Docs/
 
 # Logs
 *.log
@@ -77,6 +78,7 @@ terminals/
 tmp/
 temp/
 .tmp/
+.firecrawl/
 .cache/
 .parcel-cache/
 

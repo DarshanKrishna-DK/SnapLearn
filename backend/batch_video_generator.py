@@ -21,6 +21,7 @@ from models import (
     VideoResponse
 )
 from enhanced_manim_generator import EnhancedManimGenerator, VideoQuality, VideoFormat, AnimationStyle
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class BatchVideoGenerator:
         self.batch_timeout_minutes = 60  # Maximum time for batch completion
         
         # Initialize Gemini for sequence planning
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini for batch planning and script coordination"""
@@ -225,12 +226,12 @@ RESPONSE FORMAT (JSON):
   "personalization_notes": ["reason1", "reason2"]
 }}"""
 
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=learning_path_prompt
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=learning_path_prompt
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             
             # Parse response
             try:
@@ -341,12 +342,12 @@ RESPONSE FORMAT (JSON):
   "pacing_strategy": "overall pacing approach"
 }}"""
 
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=sequence_prompt
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=sequence_prompt
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             
             # Parse sequence plan
             try:

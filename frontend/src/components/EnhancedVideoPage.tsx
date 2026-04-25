@@ -184,29 +184,19 @@ const EnhancedVideoPage: React.FC<EnhancedVideoPageProps> = ({
         setGenerationProgress(prev => Math.min(prev + 10, 90));
       }, 2000);
 
-      const videoResult = await fetch('/api/video/generate-contextual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: videoSettings.topic,
-          student_id: studentId,
-          grade_level: gradeLevel,
-          language: language,
-          conversation_context: conversationContext,
-          video_quality: videoSettings.quality,
-          video_format: videoSettings.format,
-          animation_style: videoSettings.animationStyle,
-          target_duration: videoSettings.targetDuration
-        })
+      const videoData = await apiClient.generateContextualVideo({
+        topic: videoSettings.topic,
+        student_id: studentId,
+        grade_level: gradeLevel,
+        language: language,
+        conversation_context: conversationContext,
+        video_quality: videoSettings.quality,
+        video_format: videoSettings.format,
+        animation_style: videoSettings.animationStyle,
+        target_duration: videoSettings.targetDuration
       });
 
       clearInterval(progressInterval);
-
-      if (!videoResult.ok) {
-        throw new Error('Video generation failed');
-      }
-
-      const videoData = await videoResult.json();
       setCurrentVideo(videoData);
       setGenerationProgress(100);
 

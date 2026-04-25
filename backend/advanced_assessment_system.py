@@ -5,7 +5,6 @@ Comprehensive evaluation, certification, and credentialing system
 
 import os
 import logging
-import asyncio
 import json
 import uuid
 from typing import Dict, Any, Optional, List, Tuple
@@ -21,6 +20,8 @@ from models import (
     AssessmentAnalytics,
     LearningAnalytics
 )
+
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ class AdvancedAssessmentSystem:
         self._init_certification_system()
         
         # Load AI engines
-        asyncio.create_task(self._init_ai_engines())
+        schedule_async_init(self._init_ai_engines())
         
         logger.info("Advanced Assessment System initialized with comprehensive evaluation capabilities")
     
@@ -537,12 +538,12 @@ Return JSON array of question IDs in recommended order:
 {{"selected_questions": ["question_id1", "question_id2", ...]}}"""
 
         try:
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=optimization_prompt
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=optimization_prompt
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             
             # Parse AI response
             if response_text.strip().startswith('{'):
@@ -872,12 +873,12 @@ Return JSON:
 }}"""
 
         try:
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=evaluation_prompt
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=evaluation_prompt
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             
             # Parse AI response
             if response_text.strip().startswith('{'):

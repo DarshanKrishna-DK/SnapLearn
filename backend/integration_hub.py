@@ -18,6 +18,8 @@ from dataclasses import dataclass, asdict
 import aiohttp
 from fastapi import BackgroundTasks
 
+from utils import schedule_async_init
+
 logger = logging.getLogger(__name__)
 
 class EventType(str, Enum):
@@ -134,8 +136,8 @@ class IntegrationHub:
         self._init_event_handlers()
         
         # Start background tasks
-        asyncio.create_task(self._init_http_session())
-        asyncio.create_task(self._event_processor())
+        schedule_async_init(self._init_http_session())
+        schedule_async_init(self._event_processor())
         
         logger.info("Integration Hub initialized with webhook and external API support")
     

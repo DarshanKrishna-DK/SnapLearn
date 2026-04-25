@@ -11,6 +11,8 @@ import tempfile
 import asyncio
 import hashlib
 import shutil
+import sys
+import re
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +24,8 @@ from models import (
     ConversationResponse,
     LearningAnalytics
 )
+
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +67,9 @@ class EnhancedManimGenerator:
         
         # Initialize Gemini client
         self.gemini_client = None
+
+        # Check for LaTeX availability (needed for MathTex)
+        self.latex_available = bool(shutil.which("latex") or shutil.which("xelatex"))
         
         # Video generation queue for batch processing
         self.generation_queue = []
@@ -75,7 +82,7 @@ class EnhancedManimGenerator:
         self._init_advanced_prompts()
         
         # Initialize Gemini with Interactions API
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini Interactions API client"""
@@ -352,7 +359,8 @@ Generate sophisticated mathematical visualizations that make abstract concepts c
         """Generate Manim script using comprehensive learning context"""
         try:
             if not self.gemini_client:
-                return await self._create_enhanced_fallback_script(topic, learning_context)
+                fallback = await self._create_enhanced_fallback_script(topic, learning_context)
+                return fallback["script"]
             
             # Build comprehensive prompt with learning context
             prompt = self.context_aware_template.format(
@@ -373,19 +381,23 @@ Generate sophisticated mathematical visualizations that make abstract concepts c
                 video_quality=video_quality.value,
                 math_complexity=self._determine_math_complexity(learning_context)
             )
+
+            if not self.latex_available:
+                prompt += "\nLATEX LIMITATION: LaTeX is not available. Avoid MathTex or Tex and use Text for equations."
             
-            # Use Gemini Interactions API for script generation
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3.1-pro-preview",  # Use pro model for complex script generation
-                input=prompt,
-                system_instruction=self.system_instruction,
-                generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 3072  # Allow for longer scripts
-                }
+            # Generate script with Gemini
+            from google.genai import types
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=self.system_instruction,
+                    temperature=0.7,
+                    max_output_tokens=3072
+                )
             )
             
-            script_text = interaction.outputs[-1].text
+            script_text = response.text
             
             # Extract and validate script
             script = self._extract_python_code(script_text)
@@ -393,6 +405,11 @@ Generate sophisticated mathematical visualizations that make abstract concepts c
             if not self._validate_enhanced_script(script):
                 # Try to fix the script
                 script = await self._fix_enhanced_script(script, topic, learning_context)
+
+            script = self._normalize_script(script)
+
+            if not self.latex_available:
+                script = script.replace("MathTex(", "Text(").replace("Tex(", "Text(")
             
             # Extract metadata from script analysis
             metadata = await self._analyze_script_metadata(script, learning_context)
@@ -490,7 +507,7 @@ Generate sophisticated mathematical visualizations that make abstract concepts c
             # Prepare Manim command with quality and format options
             output_filename = f"{variant_id}.{format_type.value}"
             manim_cmd = [
-                "python", "-m", "manim",
+                sys.executable, "-m", "manim",
                 str(script_path),
                 "ExplanationScene",
                 "-o", output_filename,
@@ -515,27 +532,36 @@ Generate sophisticated mathematical visualizations that make abstract concepts c
             # Run Manim rendering
             logger.info(f"Rendering {quality.value} {format_type.value} variant: {variant_id}")
             
-            process = await asyncio.create_subprocess_exec(
-                *manim_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=self.temp_dir
-            )
-            
             # Wait for completion with extended timeout for higher qualities
             timeout = 600 if quality in [VideoQuality.HIGH, VideoQuality.ULTRA] else 300
-            
+
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
+                result = await asyncio.to_thread(
+                    subprocess.run,
+                    manim_cmd,
+                    cwd=self.temp_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+                stdout = result.stdout
+                stderr = result.stderr
+                returncode = result.returncode
+            except subprocess.TimeoutExpired:
                 raise Exception(f"Rendering timed out after {timeout} seconds")
             
             generation_time = (datetime.now() - start_time).total_seconds()
             
-            if process.returncode != 0:
-                error_msg = stderr.decode('utf-8') if stderr else "Unknown rendering error"
+            if returncode != 0:
+                stdout_text = stdout or ""
+                stderr_text = stderr or ""
+                error_msg = stderr_text or stdout_text or "Unknown rendering error"
+                logger.error(
+                    "Rendering failed (code %s). Stdout: %s Stderr: %s",
+                    returncode,
+                    stdout_text[-500:],
+                    stderr_text[-500:]
+                )
                 raise Exception(f"Rendering failed: {error_msg}")
             
             # Find and process the generated video
@@ -564,8 +590,8 @@ Generate sophisticated mathematical visualizations that make abstract concepts c
                 "generation_time_seconds": round(generation_time, 2)
             }
             
-        except Exception as e:
-            logger.error(f"Error rendering single variant: {str(e)}")
+        except Exception:
+            logger.exception("Error rendering single variant")
             return None
     
     async def _find_and_move_video(self, variant_id: str, format_type: VideoFormat) -> Optional[Path]:
@@ -663,12 +689,12 @@ Return JSON format:
   "grade_appropriate_style": "visual style recommendations"
 }}"""
 
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=thumbnail_prompt
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=thumbnail_prompt
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             
             # Parse JSON response
             try:
@@ -738,7 +764,7 @@ class ThumbnailScene(Scene):
             
             # Render as single high-quality image
             cmd = [
-                "python", "-m", "manim",
+                sys.executable, "-m", "manim",
                 str(script_path),
                 "ThumbnailScene",
                 "-s",  # Save last frame
@@ -746,20 +772,20 @@ class ThumbnailScene(Scene):
                 "-v", "WARNING"
             ]
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            result = await asyncio.to_thread(
+                subprocess.run,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60
             )
             
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-            
-            if process.returncode == 0:
+            if result.returncode == 0:
                 # Find and move thumbnail
                 return await self._find_thumbnail_file(thumbnail_id)
             
-        except Exception as e:
-            logger.error(f"Error rendering thumbnail: {str(e)}")
+        except Exception:
+            logger.exception("Error rendering thumbnail")
         
         return None
     
@@ -910,6 +936,42 @@ class ThumbnailScene(Scene):
         except Exception as e:
             logger.error(f"Error validating enhanced script: {str(e)}")
             return False
+
+    def _normalize_script(self, script: str) -> str:
+        """Normalize script to meet Manim execution requirements."""
+        try:
+            if "from manim import" not in script:
+                script = f"from manim import *\n\n{script}"
+
+            class_match = re.search(r'class\s+(\w+)\s*\(.*Scene.*\):', script)
+            if class_match and class_match.group(1) != "ExplanationScene":
+                script = re.sub(
+                    r'class\s+\w+\s*\(.*Scene.*\):',
+                    "class ExplanationScene(Scene):",
+                    script,
+                    count=1
+                )
+
+            if "FRAME_WIDTH" in script or "FRAME_HEIGHT" in script:
+                if "from manim import config" not in script:
+                    script = script.replace(
+                        "from manim import *",
+                        "from manim import *\nfrom manim import config",
+                        1
+                    )
+                script = script.replace("FRAME_WIDTH", "config.frame_width")
+                script = script.replace("FRAME_HEIGHT", "config.frame_height")
+
+            script = re.sub(
+                r'([A-Z_]+)\.copy\(\)\.set_opacity\([^)]+\)',
+                r'\1',
+                script
+            )
+
+            return script
+        except Exception as e:
+            logger.error(f"Error normalizing script: {str(e)}")
+            return script
     
     async def _fix_enhanced_script(self, broken_script: str, topic: str, learning_context: Dict[str, Any]) -> str:
         """Enhanced script fixing with context awareness"""
@@ -938,23 +1000,25 @@ FIX REQUIREMENTS:
 
 Return ONLY the corrected Python script."""
 
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=fix_prompt
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=fix_prompt
             )
             
-            fixed_script = self._extract_python_code(interaction.outputs[-1].text)
+            fixed_script = self._extract_python_code(response.text)
             
             if self._validate_enhanced_script(fixed_script):
                 logger.info("Successfully fixed enhanced script")
                 return fixed_script
             else:
                 logger.warning("Fixed script still has issues, using enhanced fallback")
-                return await self._create_enhanced_fallback_script(topic, learning_context)
+                fallback = await self._create_enhanced_fallback_script(topic, learning_context)
+                return fallback["script"]
                 
         except Exception as e:
             logger.error(f"Error fixing enhanced script: {str(e)}")
-            return await self._create_enhanced_fallback_script(topic, learning_context)
+            fallback = await self._create_enhanced_fallback_script(topic, learning_context)
+            return fallback["script"]
     
     async def _create_enhanced_fallback_script(self, topic: str, learning_context: Dict[str, Any]) -> Dict[str, Any]:
         """Create sophisticated fallback script with learning context"""
@@ -975,7 +1039,7 @@ Return ONLY the corrected Python script."""
         
         # Adapt to learning style
         animations = ["Write", "FadeIn"] if learning_style == "auditory" else ["Create", "Transform"]
-        colors = ["BLUE", "GREEN", "YELLOW"] if learning_style == "visual" else ["WHITE", "LIGHT_BLUE"]
+        colors = ["BLUE", "GREEN", "YELLOW"] if learning_style == "visual" else ["WHITE", "BLUE"]
         
         script = f'''from manim import *
 
@@ -1198,7 +1262,7 @@ class ExplanationScene(Scene):
         try:
             # Check Manim availability
             result = subprocess.run(
-                ["python", "-m", "manim", "--version"],
+                [sys.executable, "-m", "manim", "--version"],
                 capture_output=True,
                 text=True,
                 timeout=10

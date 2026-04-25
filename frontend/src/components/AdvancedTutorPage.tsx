@@ -30,7 +30,7 @@ import {
   LanguageCode,
   LearningAnalytics
 } from '@/types';
-import BlackboardAnimation from './BlackboardAnimation';
+import AnimatedBlackboard from './AnimatedBlackboard';
 
 interface AdvancedTutorPageProps {
   studentId: string;
@@ -576,7 +576,7 @@ const AdvancedTutorPage: React.FC<AdvancedTutorPageProps> = ({
               {/* Blackboard Animation */}
               <div className="bg-black rounded-lg overflow-hidden">
                 {getCurrentMessage()?.metadata?.board_script && (
-                  <BlackboardAnimation
+                  <AnimatedBlackboard
                     script={getCurrentMessage()!.metadata!.board_script}
                     isPlaying={true}
                   />

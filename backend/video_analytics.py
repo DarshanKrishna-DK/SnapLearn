@@ -15,6 +15,7 @@ from enum import Enum
 import statistics
 
 from models import StudentProfile, VideoResponse
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -113,11 +114,11 @@ class VideoAnalytics:
         self.engagement_model = None
         
         # Initialize analytics data
-        asyncio.create_task(self._load_historical_analytics())
-        
+        schedule_async_init(self._load_historical_analytics())
+
         # Start background tasks
-        asyncio.create_task(self._analytics_processor())
-        asyncio.create_task(self._session_monitor())
+        schedule_async_init(self._analytics_processor())
+        schedule_async_init(self._session_monitor())
     
     async def _load_historical_analytics(self):
         """Load historical analytics data"""

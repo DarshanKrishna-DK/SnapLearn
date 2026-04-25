@@ -9,11 +9,13 @@ import subprocess
 import json
 import tempfile
 import asyncio
+import sys
 from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 
 from models import VideoResponse, StudentProfile
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +33,13 @@ class ManimGenerator:
         
         # Initialize Gemini client for script generation
         self.gemini_client = None
-        self.model_name = "gemini-3-flash-preview"
+        self.model_name = "gemini-2.5-flash"
         
         # Create manim scene prompt template
         self._create_manim_prompt_template()
         
         # Initialize Gemini
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini client for script generation"""
@@ -327,7 +329,7 @@ class ExplanationScene(Scene):
             # Prepare Manim command
             output_dir = self.videos_dir
             manim_cmd = [
-                "python", "-m", "manim",
+                sys.executable, "-m", "manim",
                 str(script_path),
                 "ExplanationScene",  # Default scene class name
                 "-o", f"{video_id}.mp4",
@@ -342,27 +344,28 @@ class ExplanationScene(Scene):
             # Run Manim subprocess
             logger.info(f"Running Manim command: {' '.join(manim_cmd)}")
             
-            process = await asyncio.create_subprocess_exec(
-                *manim_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=self.temp_dir
-            )
-            
             # Wait for completion with timeout
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)  # 5 minute timeout
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
+                result = await asyncio.to_thread(
+                    subprocess.run,
+                    manim_cmd,
+                    cwd=self.temp_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                stdout = result.stdout
+                stderr = result.stderr
+                returncode = result.returncode
+            except subprocess.TimeoutExpired:
                 raise Exception("Manim rendering timed out after 5 minutes")
             
             # Calculate generation time
             generation_time = (datetime.now() - start_time).total_seconds()
             
             # Check if rendering was successful
-            if process.returncode != 0:
-                error_msg = stderr.decode('utf-8') if stderr else "Unknown Manim error"
+            if returncode != 0:
+                error_msg = stderr or stdout or "Unknown Manim error"
                 logger.error(f"Manim rendering failed: {error_msg}")
                 raise Exception(f"Manim rendering failed: {error_msg}")
             
@@ -438,16 +441,15 @@ class ExplanationScene(Scene):
                 "-of", "csv=p=0", str(video_path)
             ]
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            result = await asyncio.to_thread(
+                subprocess.run,
+                cmd,
+                capture_output=True,
+                text=True
             )
             
-            stdout, _ = await process.communicate()
-            
-            if process.returncode == 0:
-                duration = float(stdout.decode().strip())
+            if result.returncode == 0:
+                duration = float(result.stdout.strip())
                 return duration
             
         except Exception as e:
@@ -472,7 +474,7 @@ class ExplanationScene(Scene):
         try:
             # Check if Manim is available
             result = subprocess.run(
-                ["python", "-m", "manim", "--version"],
+                [sys.executable, "-m", "manim", "--version"],
                 capture_output=True,
                 text=True,
                 timeout=10

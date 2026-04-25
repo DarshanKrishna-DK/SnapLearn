@@ -15,9 +15,10 @@ import asyncio
 from PIL import Image
 import speech_recognition as sr
 from pydub import AudioSegment
-from langdetect import detect, LangDetectError
+from langdetect import detect, LangDetectException
 
 from models import LanguageCode
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,8 @@ class InputProcessor:
         self.supported_image_formats = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']
         self.supported_audio_formats = ['.wav', '.mp3', '.m4a', '.ogg', '.flac']
         
-        # Initialize Gemini client
-        asyncio.create_task(self._init_gemini())
+        # Initialize Gemini client (works at import time and under uvicorn)
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini client for multimodal processing"""
@@ -235,7 +236,7 @@ class InputProcessor:
             
             # Call Gemini with multimodal input
             response = self.gemini_client.models.generate_content(
-                model="gemini-3-flash-preview",
+                model="gemini-2.5-flash",
                 contents=[
                     {
                         "parts": [
@@ -423,7 +424,7 @@ Extracted text:"""
             
             return language_mapping.get(detected, 'en')
             
-        except LangDetectError:
+        except LangDetectException:
             logger.warning("Language detection failed, defaulting to English")
             return "en"
     

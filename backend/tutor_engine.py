@@ -8,7 +8,6 @@ import logging
 import json
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-import asyncio
 
 from models import (
     ExplanationResponse, 
@@ -18,6 +17,8 @@ from models import (
     BoardStep
 )
 
+from utils import schedule_async_init
+
 logger = logging.getLogger(__name__)
 
 class TutorEngine:
@@ -26,13 +27,13 @@ class TutorEngine:
     def __init__(self):
         self.gemini_client = None
         self.prompts_dir = "../prompts"
-        self.model_name = "gemini-3-flash-preview"  # Using current model from skill
+        self.model_name = "gemini-2.5-flash"
         
         # Load prompt templates
         self._load_prompts()
         
         # Initialize Gemini client
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini API client"""

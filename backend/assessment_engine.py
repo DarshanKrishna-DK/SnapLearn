@@ -6,7 +6,6 @@ Detects mistake patterns, provides detailed feedback, and adapts teaching strate
 import os
 import logging
 import json
-import asyncio
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 import re
@@ -19,6 +18,8 @@ from models import (
     GradeLevel, 
     LanguageCode
 )
+
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ class AssessmentEngine:
         self._init_assessment_rubrics()
         
         # Initialize Gemini
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini client for assessment"""
@@ -238,16 +239,17 @@ RESPONSE FORMAT (JSON):
 }}"""
 
             # Use Gemini Interactions API for assessment
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3.1-pro-preview",  # Use pro model for detailed assessment
-                input=assessment_prompt,
-                generation_config={
-                    "temperature": 0.2,  # Lower temperature for consistent assessment
-                    "max_output_tokens": 1024
-                }
+            from google.genai import types
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=assessment_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,  # Lower temperature for consistent assessment
+                    max_output_tokens=1024
+                )
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             return self._parse_json_response(response_text)
             
         except Exception as e:

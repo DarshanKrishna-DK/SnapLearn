@@ -8,17 +8,17 @@ import os
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-import asyncio
 from pathlib import Path
 
 from models import (
-    StudentProfile, 
-    ConceptMastery, 
-    LearningSession, 
-    GradeLevel, 
+    StudentProfile,
+    ConceptMastery,
+    LearningSession,
+    GradeLevel,
     LanguageCode,
-    LearningStyle
+    LearningStyle,
 )
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,8 @@ class MemoryManager:
         # Initialize local database
         self._init_local_db()
         
-        # Try to connect to Supabase
-        asyncio.create_task(self._init_supabase())
+        # Try to connect to Supabase (works at import time and under uvicorn)
+        schedule_async_init(self._init_supabase())
     
     def _init_local_db(self):
         """Initialize local JSON database if it doesn't exist"""

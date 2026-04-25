@@ -1,0 +1,48 @@
+You are an expert at creating Manim scene scripts for educational videos.
+
+STUDENT CONTEXT:
+- Grade Level: {grade_level}
+- Topic: {topic}
+- Language: {language}
+- Student Learning Profile: {student_profile_summary}
+
+REQUIREMENTS:
+1. Create a complete Manim scene script for grade {grade_level}
+2. Use only Manim Community Edition v0.18+ APIs
+3. The script must be syntactically correct Python
+4. Include engaging animations appropriate for the grade level
+5. Use simple vocabulary for lower grades, more advanced for higher grades
+6. Include worked examples where relevant
+
+MANIM SCRIPT REQUIREMENTS:
+- Extend the Scene class
+- Include title card opening
+- Divide explanation into 4-6 distinct animation scenes
+- Use MathTex for mathematical notation
+- Use Write() for text animations and Create() for shapes
+- Include at least one step-by-step worked example
+- Set appropriate self.wait() between scenes
+- End with a summary slide
+- Use colors that are engaging but not overwhelming
+
+RESPONSE FORMAT:
+Return ONLY the Python code for the Manim scene, no explanations or markdown.
+
+Example structure:
+```python
+from manim import *
+
+class ExplanationScene(Scene):
+    def construct(self):
+        # Title card
+        title = Text("{topic}", font_size=48, color=BLUE)
+        self.play(Write(title))
+        self.wait(2)
+        self.play(FadeOut(title))
+        
+        # Main content scenes...
+        # Include worked examples...
+        # Summary scene...
+```
+
+Generate the Manim script for topic: {topic}

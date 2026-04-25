@@ -6,7 +6,6 @@ Dynamically adjusts content difficulty based on student performance and learning
 import os
 import logging
 import json
-import asyncio
 import math
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
@@ -14,6 +13,7 @@ from enum import Enum
 from dataclasses import dataclass
 
 from models import StudentProfile, GradeLevel
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class AdaptiveDifficultyEngine:
         }
         
         # Initialize Gemini for content generation
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini for difficulty-adaptive content generation"""
@@ -489,16 +489,17 @@ RESPONSE FORMAT (JSON):
 }}"""
 
             # Generate adapted content
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=adaptation_prompt,
-                generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 1024
-                }
+            from google.genai import types
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=adaptation_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.7,
+                    max_output_tokens=1024
+                )
             )
             
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             adapted_content = self._parse_json_response(response_text)
             
             # Log the adaptation

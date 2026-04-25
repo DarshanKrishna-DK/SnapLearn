@@ -5,7 +5,6 @@ Production-ready demo showcasing all platform capabilities
 
 import os
 import logging
-import asyncio
 import json
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
@@ -22,6 +21,8 @@ from models import (
     AssessmentAnalytics,
     LearningAnalytics
 )
+
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class SDKDemoPortal:
         self._init_feature_demonstrations()
         
         # Load integration engines
-        asyncio.create_task(self._init_integration_engines())
+        schedule_async_init(self._init_integration_engines())
         
         logger.info("SDK Demo Portal initialized with production showcase capabilities")
     

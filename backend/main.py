@@ -3,6 +3,17 @@ SnapLearn AI - FastAPI Backend
 Main application file for the adaptive tutoring engine
 """
 
+from pathlib import Path
+
+# Load backend/.env before imports that read os.environ. Uvicorn only loads dotenv when --env-file is passed.
+_backend_dir = Path(__file__).resolve().parent
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(_backend_dir / ".env")
+except ImportError:
+    pass
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +30,7 @@ from models import (
     ExplanationResponse, 
     VideoRequest, 
     VideoResponse,
+    ContextualVideoRequest,
     StudentProfile,
     AssessmentRequest,
     AssessmentResponse,
@@ -570,13 +582,18 @@ Generate an optimized learning sequence in JSON format:
   "personalization_notes": ["reason1", "reason2"]
 }}"""
 
-        interaction = client.interactions.create(
-            model="gemini-3-flash-preview",
-            input=learning_path_prompt
+        from google.genai import types
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=learning_path_prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=1024
+            )
         )
         
         import json
-        response_text = interaction.outputs[-1].text
+        response_text = response.text
         
         # Parse JSON response
         try:
@@ -763,13 +780,18 @@ Generate recommendations in JSON format:
   "reminder_suggestions": ["reminder1", "reminder2"]
 }}"""
 
-        interaction = client.interactions.create(
-            model="gemini-3-flash-preview",
-            input=recommendations_prompt
+        from google.genai import types
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=recommendations_prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=1024
+            )
         )
         
         import json
-        response_text = interaction.outputs[-1].text
+        response_text = response.text
         
         # Parse response
         try:
@@ -854,54 +876,51 @@ async def get_learning_analytics(student_id: str, period: str = "week"):
             }
         )
         
-        except Exception as e:
-            logger.error(f"Error generating learning analytics: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating learning analytics: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Phase 4 Endpoints - Enhanced Video Generation & Analytics
 
 @app.post("/api/video/generate-contextual")
-async def generate_contextual_video(
-    topic: str,
-    student_id: str,
-    grade_level: str,
-    language: str = "en",
-    conversation_context: Optional[Dict[str, Any]] = None,
-    video_quality: str = "high",
-    video_format: str = "mp4",
-    animation_style: str = "modern",
-    target_duration: int = 180
-):
+async def generate_contextual_video(request: ContextualVideoRequest):
     """
     Generate contextual video using Phase 4 enhanced generator with conversation context
     """
     try:
-        logger.info(f"Generating contextual video for topic: {topic}, student: {student_id}")
+        logger.info(f"Generating contextual video for topic: {request.topic}, student: {request.student_id}")
         
         # Get student profile
-        student_profile = await memory_manager.get_student_profile(student_id)
+        student_profile = await memory_manager.get_student_profile(request.student_id)
         
         # Convert string enums to actual enums
-        quality_enum = VideoQuality(video_quality)
-        format_enum = VideoFormat(video_format)
-        style_enum = AnimationStyle(animation_style)
+        quality_map = {
+            "low": VideoQuality.LOW.value,
+            "medium": VideoQuality.MEDIUM.value,
+            "high": VideoQuality.HIGH.value,
+            "ultra": VideoQuality.ULTRA.value
+        }
+        quality_value = quality_map.get(request.video_quality, request.video_quality)
+        quality_enum = VideoQuality(quality_value)
+        format_enum = VideoFormat(request.video_format)
+        style_enum = AnimationStyle(request.animation_style)
         
         # Generate enhanced contextual video
         video_result = await enhanced_manim_generator.generate_contextual_video(
-            topic=topic,
+            topic=request.topic,
             student_profile=student_profile,
-            conversation_context=conversation_context,
+            conversation_context=request.conversation_context,
             learning_analytics=None,  # Could include learning analytics
             video_quality=quality_enum,
             video_format=format_enum,
             animation_style=style_enum,
-            target_duration=target_duration
+            target_duration=request.target_duration
         )
         
         # Log video generation
         await memory_manager.log_video_generation(
-            student_id=student_id,
-            topic=topic,
+            student_id=request.student_id,
+            topic=request.topic,
             video_path=video_result["video_url"]
         )
         

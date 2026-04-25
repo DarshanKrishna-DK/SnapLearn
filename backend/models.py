@@ -85,6 +85,18 @@ class VideoRequest(BaseModel):
     language: LanguageCode = Field(default=LanguageCode.ENGLISH, description="Video language")
     duration_preference: Optional[str] = Field("medium", description="Preferred video length")
 
+class ContextualVideoRequest(BaseModel):
+    """Request model for contextual video generation"""
+    topic: str = Field(..., description="Topic for video generation")
+    student_id: str = Field(..., description="Unique student identifier")
+    grade_level: GradeLevel = Field(..., description="Student's grade level")
+    language: LanguageCode = Field(default=LanguageCode.ENGLISH, description="Video language")
+    conversation_context: Optional[Dict[str, Any]] = Field(None, description="Conversation context payload")
+    video_quality: str = Field(default="high", description="Video quality setting")
+    video_format: str = Field(default="mp4", description="Video format")
+    animation_style: str = Field(default="modern", description="Animation style")
+    target_duration: int = Field(default=180, description="Target video duration in seconds")
+
 class AssessmentRequest(BaseModel):
     """Request model for answer assessment"""
     question: str = Field(..., description="Original question")

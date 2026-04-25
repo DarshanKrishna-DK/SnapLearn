@@ -6,7 +6,6 @@ Manages multi-turn conversations with context, difficulty adaptation, and learni
 import os
 import logging
 import json
-import asyncio
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
 from enum import Enum
@@ -21,6 +20,8 @@ from models import (
     BoardScript,
     BoardStep
 )
+
+from utils import schedule_async_init
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class ConversationEngine:
         self.adaptation_history = {}
         
         # Initialize Gemini Interactions API
-        asyncio.create_task(self._init_gemini())
+        schedule_async_init(self._init_gemini())
     
     async def _init_gemini(self):
         """Initialize Gemini Interactions API client"""
@@ -300,24 +301,21 @@ class ConversationEngine:
             # Prepare input with full context
             input_text = self._prepare_contextual_input(conversation, question, context)
             
-            # Create Gemini interaction
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3-flash-preview",
-                input=input_text,
-                system_instruction=system_instruction,
-                previous_interaction_id=conversation.get("gemini_interaction_id"),
-                generation_config={
-                    "temperature": 0.7,
-                    "top_p": 0.8,
-                    "max_output_tokens": 2048
-                }
+            # Generate response with Gemini
+            from google.genai import types
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=input_text,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.7,
+                    top_p=0.8,
+                    max_output_tokens=2048
+                )
             )
             
-            # Store interaction ID for conversation continuity
-            conversation["gemini_interaction_id"] = interaction.id
-            
             # Parse response into structured format
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             explanation_data = await self._parse_explanation_response(response_text, conversation)
             
             return ExplanationResponse(**explanation_data)
@@ -435,20 +433,17 @@ Please analyze and respond in JSON format:
   "next_action": "continue|assess|clarify|reteach|advance"
 }}"""
 
-            interaction = self.gemini_client.interactions.create(
-                model="gemini-3.1-flash-lite-preview", 
-                input=analysis_prompt,
-                previous_interaction_id=conversation.get("analysis_interaction_id"),
-                generation_config={
-                    "temperature": 0.3,
-                    "max_output_tokens": 512
-                }
+            from google.genai import types
+            response = self.gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=analysis_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                    max_output_tokens=512
+                )
             )
             
-            # Store analysis interaction ID
-            conversation["analysis_interaction_id"] = interaction.id
-            
-            response_text = interaction.outputs[-1].text
+            response_text = response.text
             return json.loads(response_text)
             
         except Exception as e:

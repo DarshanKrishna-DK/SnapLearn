@@ -1,210 +1,392 @@
-# SnapLearn AI - Adaptive Tutoring Engine
+<div align="center">
 
-An AI-powered adaptive tutoring platform with personalized explanations, animated blackboards, and video generation capabilities.
+# SnapLearn AI
 
-## 🎯 Overview
+**Adaptive tutoring engine** with multimodal input, conversational learning, Manim-backed video, and a REST API you can embed in your own products.
 
-SnapLearn AI is an embeddable tutoring engine that provides:
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4?style=flat&logo=google&logoColor=white)](https://ai.google.dev/)
 
-- **🤖 AI Tutoring**: Personalized explanations using Gemini API
-- **📝 Animated Blackboard**: Step-by-step visual explanations  
-- **🎥 Video Generation**: Educational videos created with Manim
-- **👤 Student Profiles**: Adaptive learning based on progress tracking
-- **🔧 SDK Integration**: RESTful API for embedding in any platform
+[Quick start](#quick-start) · [Run and test](#how-to-run-and-test-this-project) · [Commands](#command-reference) · [Architecture](#architecture--workflow)
 
-## 🏗️ Architecture
+</div>
 
-- **Backend**: FastAPI with Gemini AI integration
-- **Frontend**: React + TypeScript + Tailwind CSS
-- **Video Generation**: Local Manim subprocess execution
-- **Database**: Supabase with local JSON fallback
-- **AI Models**: Google Gemini 3 Flash Preview
+---
 
-## 🚀 Quick Start
+## What this project is
 
-### Prerequisites
+SnapLearn AI is a **full-stack learning demo** that combines:
 
-- Python 3.8+ 
-- Node.js 18+
-- Gemini API key ([Get one here](https://aistudio.google.com/app/apikey))
-- Optional: Manim for video generation
+| Layer | Role |
+|-------|------|
+| **Frontend** | React (Vite) UI: tutor, video studio, profile, SDK demo. Proxies `/api`, `/videos`, and `/static` to the backend in dev. |
+| **Backend** | FastAPI app exposing tutoring, multimodal processing, conversation and assessment flows, adaptive signals, and enhanced video endpoints. |
+| **AI** | Google Gemini (`google-genai`) for explanations, vision OCR, and script-style generation where implemented. |
+| **Media** | Manim (where installed) for rendered lesson videos; local folders for output and static assets. |
+| **Memory** | Student profiles and history via Supabase when configured, otherwise **local JSON** under `data/`. |
 
-### 1. Backend Setup
+It is built for **hackathon-style iteration**: dynamic behavior where possible, with small mocks only where needed for a stable demo (see [CHANGELOG](Reference%20Docs/CHANGELOG.md) for phase detail).
 
-```bash
-# Navigate to backend directory
+---
+
+## Features (by phase)
+
+| Phase | Highlights |
+|-------|------------|
+| **1** | Core `/api/explain`, video generation, student profile API, animated blackboard UI. |
+| **2** | Image and voice pipelines, text normalization, math hints, tabbed tutor input. |
+| **3** | Conversation engine, assessments, adaptive difficulty, confusion signals, parent dashboard data, study recommendations. |
+| **4** | Contextual and styled video generation, batch jobs, video sessions, analytics, recommendations, thumbnails. |
+| **5** | SDK demo portal module, advanced assessment system, multi-tenant and integration hub **Python modules**, JS/Python SDK samples, Docker and deploy scripts. *Default dev server remains `backend/main.py`; see [Optional Phase 5 API stack](#optional-phase-5-api-stack) for `main_phase5.py`.* |
+
+---
+
+## Repository layout
+
+```text
+SnapLearn/
+├── backend/
+│   ├── main.py                 # Default FastAPI entry (dev)
+│   ├── main_phase5.py        # Extended Phase 5 API sketch (separate entrypoint)
+│   ├── models.py             # Pydantic models
+│   ├── tutor_engine.py       # Explanations and tutoring
+│   ├── manim_generator.py    # Classic Manim pipeline
+│   ├── enhanced_manim_generator.py
+│   ├── batch_video_generator.py
+│   ├── video_analytics.py
+│   ├── input_processor.py    # Image / voice / text
+│   ├── conversation_engine.py
+│   ├── assessment_engine.py
+│   ├── adaptive_difficulty.py
+│   ├── memory.py             # Profiles + Supabase or JSON fallback
+│   ├── utils.py
+│   ├── sdk_demo_portal.py
+│   ├── advanced_assessment_system.py
+│   ├── multi_tenant_system.py
+│   ├── integration_hub.py
+│   ├── requirements.txt
+│   ├── requirements-prod.txt
+│   ├── Dockerfile.prod
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx           # Routes: /, /videos, /profile, /sdk-demo
+│   │   ├── pages/            # TutorPage, VideoPage, ProfilePage, SDKDemoPage
+│   │   ├── components/       # Blackboard, multimodal, Advanced/Enhanced tutor & video UIs
+│   │   ├── utils/api.ts      # Typed API client
+│   │   └── types/index.ts
+│   ├── vite.config.ts        # Dev server + proxy to :8000
+│   └── package.json
+├── sdk/
+│   ├── javascript/snaplearn-ai-sdk.js
+│   └── python/snaplearn_ai_sdk.py
+├── deploy/
+│   ├── production-deploy.sh
+│   └── test-phase5-demo.sh
+├── docker-compose.prod.yml
+├── .env.prod.template
+├── data/                     # Local persistence (gitignored patterns may apply)
+├── videos/                   # Generated media (often gitignored)
+├── static/
+└── Reference Docs/
+    └── CHANGELOG.md          # Phase tables, testing notes, deep changelog
+```
+
+---
+
+## Architecture and workflow
+
+The diagrams below treat the system as **layered signal flow**: requests move through the edge (browser), the API surface, specialized engines, and persistence. That matches an *algorithmic documentation* view (structured flow, emergent behavior at each tier) without shipping a separate generative art binary in the repo.
+
+### System context
+
+```mermaid
+flowchart TB
+  subgraph Client["Client (browser)"]
+    UI["React UI\nVite dev :3000"]
+  end
+
+  subgraph Edge["Edge / dev proxy"]
+    PX["Vite proxy\n/api · /videos · /static"]
+  end
+
+  subgraph API["FastAPI :8000"]
+    R["Routes\nmain.py"]
+  end
+
+  subgraph Engines["Domain engines"]
+    T["TutorEngine"]
+    I["InputProcessor"]
+    C["ConversationEngine"]
+    A["AssessmentEngine + AdaptiveDifficulty"]
+    M["Manim + Enhanced + Batch"]
+    V["VideoAnalytics"]
+    MEM["MemoryManager"]
+  end
+
+  subgraph External["External services"]
+    G["Gemini API"]
+    S["Supabase (optional)"]
+  end
+
+  UI --> PX --> R
+  R --> T & I & C & A & M & V & MEM
+  T & I & C & A & M --> G
+  MEM --> S
+  M --> FS["Local FS\nvideos · static"]
+```
+
+### Typical tutoring request (high level)
+
+```mermaid
+sequenceDiagram
+  participant U as Student UI
+  participant V as Vite proxy
+  participant F as FastAPI
+  participant Mem as MemoryManager
+  participant Tut as TutorEngine
+  participant AI as Gemini
+
+  U->>V: POST /api/explain JSON
+  V->>F: forward to :8000
+  F->>Mem: load / upsert student profile
+  Mem-->>F: StudentProfile
+  F->>Tut: generate_explanation(...)
+  Tut->>AI: model call
+  AI-->>Tut: text + structure
+  Tut-->>F: ExplanationResponse
+  F-->>V: JSON
+  V-->>U: explanation + follow-ups
+```
+
+### Multimodal path (conceptual)
+
+```mermaid
+flowchart LR
+  IN["Upload or record"] --> API["/api/process-image\n/api/process-voice\n/api/process-text"]
+  API --> IP["InputProcessor"]
+  IP --> OUT["Structured text +\nmetadata back to UI"]
+```
+
+---
+
+## Prerequisites
+
+- **Python** 3.11+ recommended (3.8+ may work; align with `requirements.txt`).
+- **Node.js** 18+ and npm.
+- **Gemini API key**: [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **Manim** (optional): required only if you want local video renders to succeed end-to-end; otherwise video endpoints may return structured placeholders or errors depending on environment.
+
+---
+
+## Quick start
+
+### 1) Backend
+
+**Windows (PowerShell)**
+
+```powershell
 cd backend
-
-# Install Python dependencies
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# Copy environment template
-cp .env.example .env
-
-# Edit .env and add your Gemini API key
-# GOOGLE_API_KEY=your_api_key_here
-
-# Start the FastAPI server
+Copy-Item .env.example .env
+# Edit .env: set GOOGLE_API_KEY=...
 python main.py
 ```
 
-The backend will be available at http://localhost:8000
-
-### 2. Frontend Setup
+**macOS / Linux**
 
 ```bash
-# Navigate to frontend directory  
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env: set GOOGLE_API_KEY=...
+python main.py
+```
+
+Server: **http://localhost:8000** (reload enabled when started via `main.py`).
+
+Equivalent explicit Uvicorn:
+
+```bash
+cd backend
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 2) Frontend
+
+```bash
 cd frontend
-
-# Install Node.js dependencies
 npm install
-
-# Start the development server
 npm run dev
 ```
 
-The frontend will be available at http://localhost:3000
+App: **http://localhost:3000** (Vite opens browser if configured).
 
-### 3. Testing the Integration
-
-1. Open http://localhost:3000 in your browser
-2. Try asking a question like "How do fractions work?"
-3. Watch the animated explanation on the blackboard
-4. Generate a video by going to the Videos page
-5. Check out the SDK demo for API integration examples
-
-## 📖 API Documentation
-
-- **Interactive Docs**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
-
-### Example API Call
+### 3) Verify connectivity
 
 ```bash
-curl -X POST http://localhost:8000/api/explain \
+curl -s http://localhost:8000/health
+```
+
+The React shell calls the same health endpoint on load; if the backend is down you will see the in-app connection error screen with copy-paste commands.
+
+---
+
+## How to run and test this project
+
+Do these in order the first time you clone the repo.
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Start backend (`python main.py` from `backend/`) | Terminal shows Uvicorn on port **8000**. |
+| 2 | `curl http://localhost:8000/health` | JSON `healthy` and per-service flags. |
+| 3 | Start frontend (`npm run dev` from `frontend/`) | Vite on **3000**, app loads without connection error. |
+| 4 | Open **http://localhost:3000** | Tutor page: ask a question (e.g. fractions or photosynthesis). |
+| 5 | Use **tabs** on the tutor UI | Exercise **text**, **image**, and **voice** flows where your OS permissions allow. |
+| 6 | Toggle **Advanced mode** and **Video mode** (header) | Phase 3 and Phase 4 surfaces (see UI labels). |
+| 7 | Open **http://localhost:3000/videos** | Request a video; confirm API calls in Network tab (`/api/...`). |
+| 8 | Open **http://localhost:3000/profile** | Inspect or adjust student id tied to `MemoryManager`. |
+| 9 | Open **http://localhost:3000/sdk-demo** | SDK-oriented demo page bundled in the SPA. |
+| 10 | Open **http://localhost:8000/docs** | Interactive Swagger for every route on `main.py`. |
+
+**Sample API call (no browser)**
+
+macOS / Linux (`curl`):
+
+```bash
+curl -s -X POST http://localhost:8000/api/explain \
   -H "Content-Type: application/json" \
-  -d '{
-    "question": "What is photosynthesis?",
-    "student_id": "demo-student", 
-    "grade_level": "5",
-    "language": "en"
-  }'
+  -d '{"question":"What is photosynthesis?","student_id":"demo-student","grade_level":"5","language":"en"}'
 ```
 
-## 🎬 Features
+Windows PowerShell (`Invoke-RestMethod`):
 
-### Hero Feature 1: Manim Video Generator
-Generate educational videos locally using Manim animations:
-- Personalized content based on grade level
-- Mathematical notation with MathTex
-- Step-by-step visual explanations
-- No cloud dependencies or generation limits
-
-### Hero Feature 2: Adaptive AI Tutor
-AI-powered tutoring with personalized explanations:
-- Gemini-powered content generation
-- Animated blackboard with SVG animations
-- Student profile-based personalization
-- Confusion detection and style adaptation
-
-### Hero Feature 3: SDK Integration
-Embeddable tutoring engine via REST API:
-- Complete API documentation
-- Live demo interface
-- Multiple language SDKs
-- Real-time API call monitoring
-
-## 📁 Project Structure
-
-```
-SnapLearn/
-├── backend/                 # FastAPI backend
-│   ├── main.py             # Main application
-│   ├── models.py           # Data models
-│   ├── tutor_engine.py     # AI tutoring logic
-│   ├── manim_generator.py  # Video generation
-│   ├── memory.py           # Data persistence
-│   └── requirements.txt    # Python dependencies
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── pages/         # Page components
-│   │   ├── utils/         # Utilities
-│   │   └── types/         # TypeScript types
-│   └── package.json       # Node.js dependencies
-├── data/                  # Local data storage
-├── videos/               # Generated videos
-├── static/               # Static assets
-└── Reference Docs/       # Documentation
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/explain" -Method Post `
+  -ContentType "application/json" `
+  -Body '{"question":"What is photosynthesis?","student_id":"demo-student","grade_level":"5","language":"en"}'
 ```
 
-## 🧪 Testing
+Windows CMD (`curl.exe`):
 
-See detailed testing instructions in [CHANGELOG.md](Reference%20Docs/CHANGELOG.md#testing-instructions---phase-1).
+```bat
+curl.exe -s -X POST http://localhost:8000/api/explain -H "Content-Type: application/json" -d "{\"question\":\"What is photosynthesis?\",\"student_id\":\"demo-student\",\"grade_level\":\"5\",\"language\":\"en\"}"
+```
 
-### Quick Health Check
+**Deeper test matrices**
 
-1. **Backend**: Visit http://localhost:8000/health
-2. **Frontend**: Visit http://localhost:3000  
-3. **API**: Test explanation endpoint with sample question
-4. **Video**: Generate a short test video
+Phase-by-phase checklists, curl examples, and edge cases live in:
 
-## 🔧 Configuration
+- [Reference Docs / CHANGELOG.md](Reference%20Docs/CHANGELOG.md)
 
-### Environment Variables
+---
 
-Create `backend/.env` from `.env.example`:
+## Command reference
+
+### Backend
+
+| Command | Purpose |
+|---------|---------|
+| `pip install -r requirements.txt` | Install runtime and dev Python deps. |
+| `python main.py` | Start API with reload (uses `validate_environment()`). |
+| `uvicorn main:app --reload --port 8000` | Same app module, explicit Uvicorn. |
+| `pytest` | Run tests if you add or extend suites under `backend/`. |
+| `black .` | Format (dev dependency). |
+| `flake8 .` | Lint (dev dependency). |
+
+### Frontend
+
+| Command | Purpose |
+|---------|---------|
+| `npm install` | Install dependencies. |
+| `npm run dev` | Dev server with API proxy. |
+| `npm run build` | Production bundle to `dist/`. |
+| `npm run preview` | Serve built output locally. |
+| `npm run type-check` | `tsc --noEmit`. |
+| `npm run lint` | ESLint on `src/`. |
+
+### Optional Phase 5 API stack
+
+`backend/main_phase5.py` is an **alternate** FastAPI application that wires demo portal, advanced assessment, multi-tenant, and integration modules. It expects auth dependencies and extra services (for example Redis) that you may not have in a minimal dev box.
 
 ```bash
-# Required
-GOOGLE_API_KEY=your_gemini_api_key
-
-# Optional  
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_key
+cd backend
+# After installing any extra deps those modules import (see their imports)
+uvicorn main_phase5:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-### Development Settings
+Use a second port so it does not collide with `main.py` on **8000**.
 
-- **Backend Port**: 8000 (configurable via PORT env var)
-- **Frontend Port**: 3000 (configurable via vite.config.ts)
-- **API Proxy**: Frontend proxies /api requests to backend
-- **Hot Reload**: Enabled for both frontend and backend
+### Optional Docker (production-style)
 
-## 📊 Phase Progress
+From repo root (Docker Desktop or Engine required):
 
-| Phase | Status | Features |
-|-------|--------|----------|
-| **Phase 1** | ✅ Complete | Foundation, API, Frontend, Basic AI |
-| **Phase 2** | 🚧 Planned | Input modalities (image, voice) |
-| **Phase 3** | 🚧 Planned | Advanced AI features, assessments |
-| **Phase 4** | 🚧 Planned | Enhanced video generation |
-| **Phase 5** | 🚧 Planned | SDK completion, analytics |
-| **Phase 6** | 🚧 Planned | Hardening, performance, security |
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod config
+```
 
-## 🤝 Contributing
+Copy `.env.prod.template` to `.env.prod`, fill secrets, then follow comments inside `docker-compose.prod.yml` and `deploy/production-deploy.sh` (bash). On Windows, run the compose file from WSL or Git Bash if you do not have Compose v2 in PowerShell.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+---
 
-## 📄 License
+## Configuration
 
-MIT License - see LICENSE file for details.
+| Variable | Where | Notes |
+|----------|-------|-------|
+| `GOOGLE_API_KEY` | `backend/.env` | Required for Gemini calls. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | `backend/.env` | Optional; omit for local JSON mode. |
+| `HOST`, `PORT`, `RELOAD` | `backend/.env` | Defaults suit local dev. |
 
-## 🆘 Support
+Full template: `backend/.env.example`.
 
-- **Issues**: [GitHub Issues](https://github.com/DarshanKrishna-DK/SnapLearn/issues)
-- **Documentation**: [Reference Docs](Reference%20Docs/)
-- **API Docs**: http://localhost:8000/docs (when running)
+---
 
-## 🙏 Acknowledgments
+## API surface (default `main.py`)
 
-- **Google Gemini**: AI model and API
-- **Manim**: Mathematical animation engine  
-- **FastAPI**: Modern Python web framework
-- **React**: Frontend framework
-- **Tailwind CSS**: Utility-first CSS framework
+High-signal groups (see `/docs` for the full list):
+
+- **Core**: `/api/explain`, `/api/generate-video`, `/api/assess`
+- **Student**: `/api/student/{id}/profile`, `/api/student/{id}/videos`
+- **Multimodal**: `/api/process-image`, `/api/process-voice`, `/api/process-text`
+- **Conversation**: `/api/conversation/start`, `/api/conversation/continue`
+- **Adaptive**: `/api/assessment/comprehensive`, `/api/difficulty/adapt`, `/api/learning-path/optimize`, `/api/confusion/detect`, `/api/recommendations/study`, `/api/analytics/learning/{student_id}`, `/api/dashboard/parent/{student_id}`
+- **Video+**: `/api/video/*` (contextual, batch, session, analytics, feedback, recommendations, thumbnails)
+- **Debug**: `/api/debug/memory`, `/api/debug/reset/{student_id}`
+- **Static**: `/sdk-demo` (HTML helper), mounted `/static`, `/videos`
+
+---
+
+## Contributing
+
+1. Fork the repository.
+2. Branch from `main` (or your default branch).
+3. Keep changes scoped; match existing style.
+4. Run `npm run type-check` and backend checks you rely on before opening a PR.
+
+---
+
+## License
+
+MIT. See `LICENSE` if present in the repository.
+
+---
+
+## Links
+
+- **Issues**: [github.com/DarshanKrishna-DK/SnapLearn/issues](https://github.com/DarshanKrishna-DK/SnapLearn/issues)
+- **Changelog and testing**: [Reference Docs / CHANGELOG.md](Reference%20Docs/CHANGELOG.md)
+
+---
+
+<div align="center">
+
+**Stack**: FastAPI · Uvicorn · React · Vite · TypeScript · Tailwind CSS · Google Gemini · Manim (optional) · Supabase (optional)
+
+</div>

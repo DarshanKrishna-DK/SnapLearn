@@ -29,18 +29,13 @@ wheels/
 .env.production.local
 *.env
 
-# IDEs and editors
+# IDEs and editors (only existing ones)
 .cursor/
 .vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-.zed/
 .gemini/
 .codex/
 config/
+.zed/
 
 # Logs
 *.log
@@ -75,8 +70,8 @@ opencode.json
 agent-transcripts/
 terminals/
 
-# Reference Documents (keep local only)
-"Reference Docs"/
+# Reference Documents (keep local only for development, but allow in repo for sharing)
+# "Reference Docs"/
 
 # Temporary and cache files
 tmp/
@@ -125,5 +120,8 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Local development folders that should not be committed
-manim-service/
+# Local development folders (only if they exist)
+# manim-service/ (removed)
+
+# Ignore package-lock.json to avoid conflicts
+package-lock.json

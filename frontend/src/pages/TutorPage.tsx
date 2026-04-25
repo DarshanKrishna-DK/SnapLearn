@@ -1,0 +1,303 @@
+import React, { useState, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
+import { Send, RotateCcw, BookOpen, Lightbulb } from 'lucide-react';
+
+// Components
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AnimatedBlackboard from '@/components/AnimatedBlackboard';
+import QuestionInput from '@/components/QuestionInput';
+
+// Utils and types
+import { apiClient, handleAPIError } from '@/utils/api';
+import { 
+  ExplanationResponse, 
+  GradeLevel, 
+  LanguageCode,
+  QuestionRequest 
+} from '@/types';
+
+interface TutorPageProps {
+  studentId: string;
+  gradeLevel: GradeLevel;
+  language: LanguageCode;
+}
+
+const TutorPage: React.FC<TutorPageProps> = ({ 
+  studentId, 
+  gradeLevel, 
+  language 
+}) => {
+  // State management
+  const [currentQuestion, setCurrentQuestion] = useState('');
+  const [explanation, setExplanation] = useState<ExplanationResponse | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showFollowUp, setShowFollowUp] = useState(false);
+
+  // Handle question submission
+  const handleQuestionSubmit = useCallback(async (question: string) => {
+    if (!question.trim()) {
+      toast.error('Please enter a question');
+      return;
+    }
+
+    setIsGenerating(true);
+    setExplanation(null);
+    setShowFollowUp(false);
+    setCurrentQuestion(question);
+
+    try {
+      const request: QuestionRequest = {
+        question: question.trim(),
+        student_id: studentId,
+        grade_level: gradeLevel,
+        language: language,
+      };
+
+      const response = await apiClient.explain(request);
+      
+      setExplanation(response);
+      toast.success('Explanation generated successfully!');
+      
+      // Show follow-up questions after animation completes
+      setTimeout(() => {
+        setShowFollowUp(true);
+      }, response.board_script.total_duration_ms + 1000);
+
+    } catch (error) {
+      console.error('Error generating explanation:', error);
+      toast.error(handleAPIError(error));
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [studentId, gradeLevel, language]);
+
+  // Handle follow-up question selection
+  const handleFollowUpClick = (followUpQuestion: string) => {
+    setCurrentQuestion(followUpQuestion);
+    handleQuestionSubmit(followUpQuestion);
+  };
+
+  // Reset the session
+  const handleReset = () => {
+    setCurrentQuestion('');
+    setExplanation(null);
+    setShowFollowUp(false);
+  };
+
+  // Suggested starter questions based on grade level
+  const getStarterQuestions = (grade: GradeLevel): string[] => {
+    const gradeNum = grade === 'K' ? 0 : parseInt(grade);
+    
+    if (gradeNum <= 2) {
+      return [
+        "What is addition?",
+        "How do I count to 10?",
+        "What are shapes?",
+        "What is the alphabet?"
+      ];
+    } else if (gradeNum <= 5) {
+      return [
+        "How do I multiply numbers?",
+        "What are fractions?",
+        "How does photosynthesis work?",
+        "What is the water cycle?"
+      ];
+    } else if (gradeNum <= 8) {
+      return [
+        "How do I solve algebraic equations?",
+        "What is the Pythagorean theorem?",
+        "How does DNA work?",
+        "What causes seasons on Earth?"
+      ];
+    } else {
+      return [
+        "How do derivatives work in calculus?",
+        "What is quantum physics?",
+        "How do chemical bonds form?",
+        "What is the theory of relativity?"
+      ];
+    }
+  };
+
+  const starterQuestions = getStarterQuestions(gradeLevel);
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          AI Tutor with Animated Blackboard
+        </h1>
+        <p className="text-gray-600 max-w-2xl mx-auto">
+          Ask any question and get a personalized explanation with an animated blackboard demonstration.
+          Designed for Grade {gradeLevel === 'K' ? 'K' : gradeLevel} level learning.
+        </p>
+      </div>
+
+      {/* Question Input */}
+      <div className="card">
+        <div className="flex items-center space-x-2 mb-4">
+          <BookOpen className="w-5 h-5 text-primary-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Ask Your Question</h2>
+        </div>
+        
+        <QuestionInput
+          value={currentQuestion}
+          onChange={setCurrentQuestion}
+          onSubmit={() => handleQuestionSubmit(currentQuestion)}
+          isLoading={isGenerating}
+          placeholder="What would you like to learn about today?"
+          className="mb-4"
+        />
+
+        {/* Action buttons */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => handleQuestionSubmit(currentQuestion)}
+            disabled={isGenerating || !currentQuestion.trim()}
+            className="btn-primary flex items-center space-x-2"
+          >
+            {isGenerating ? (
+              <>
+                <LoadingSpinner size="sm" />
+                <span>Generating explanation...</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                <span>Get Explanation</span>
+              </>
+            )}
+          </button>
+
+          {explanation && (
+            <button
+              onClick={handleReset}
+              className="btn-ghost flex items-center space-x-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>New Question</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Starter questions (shown when no explanation is active) */}
+      {!explanation && !isGenerating && (
+        <div className="card">
+          <div className="flex items-center space-x-2 mb-4">
+            <Lightbulb className="w-5 h-5 text-yellow-500" />
+            <h3 className="text-lg font-semibold text-gray-900">
+              Try These Questions
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {starterQuestions.map((question, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  setCurrentQuestion(question);
+                  handleQuestionSubmit(question);
+                }}
+                className="text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+              >
+                "{question}"
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Animated Blackboard */}
+      {(explanation || isGenerating) && (
+        <div className="card p-0 overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {isGenerating ? 'Preparing explanation...' : currentQuestion}
+            </h2>
+            {explanation && (
+              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                <span>Difficulty: {explanation.difficulty_level}</span>
+                <span>•</span>
+                <span>Confidence: {Math.round(explanation.confidence_score * 100)}%</span>
+              </div>
+            )}
+          </div>
+          
+          {isGenerating ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <LoadingSpinner size="lg" />
+                <p className="mt-4 text-gray-600">
+                  Generating personalized explanation...
+                </p>
+              </div>
+            </div>
+          ) : explanation ? (
+            <AnimatedBlackboard 
+              script={explanation.board_script}
+              isPlaying={true}
+              onAnimationComplete={() => console.log('Animation completed')}
+            />
+          ) : null}
+        </div>
+      )}
+
+      {/* Explanation Text and Key Concepts */}
+      {explanation && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Explanation Text */}
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              Detailed Explanation
+            </h3>
+            <div className="prose prose-sm max-w-none">
+              <p className="text-gray-700 leading-relaxed">
+                {explanation.explanation_text}
+              </p>
+            </div>
+          </div>
+
+          {/* Key Concepts */}
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              Key Concepts
+            </h3>
+            <div className="space-y-2">
+              {explanation.key_concepts.map((concept, index) => (
+                <div
+                  key={index}
+                  className="bg-primary-50 text-primary-700 px-3 py-2 rounded-lg text-sm"
+                >
+                  {concept}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up Questions */}
+      {showFollowUp && explanation && explanation.follow_up_questions.length > 0 && (
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Continue Learning
+          </h3>
+          <div className="space-y-2">
+            {explanation.follow_up_questions.map((question, index) => (
+              <button
+                key={index}
+                onClick={() => handleFollowUpClick(question)}
+                className="w-full text-left p-3 bg-secondary-50 hover:bg-secondary-100 text-secondary-800 rounded-lg transition-colors"
+              >
+                {question}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TutorPage;

@@ -1,0 +1,59 @@
+{
+  "name": "snaplearn-frontend",
+  "version": "1.0.0",
+  "description": "SnapLearn AI Frontend - Adaptive Tutoring Interface",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext js,jsx,ts,tsx",
+    "lint:fix": "eslint src --ext js,jsx,ts,tsx --fix",
+    "format": "prettier --write src/**/*.{js,jsx,ts,tsx,css,md}",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.468.0",
+    "tailwindcss": "^3.4.17",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "@tailwindcss/typography": "^0.5.15",
+    "framer-motion": "^11.15.0",
+    "axios": "^1.7.9",
+    "react-router-dom": "^6.28.0",
+    "react-hot-toast": "^2.4.1",
+    "react-markdown": "^9.0.1",
+    "date-fns": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.5",
+    "typescript": "^5.7.2",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "prettier": "^3.4.2"
+  },
+  "keywords": [
+    "ai",
+    "education",
+    "tutoring",
+    "react",
+    "vite",
+    "gemini",
+    "manim"
+  ],
+  "author": "SnapLearn AI Team",
+  "license": "MIT",
+  "homepage": "https://github.com/DarshanKrishna-DK/SnapLearn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DarshanKrishna-DK/SnapLearn.git"
+  }
+}

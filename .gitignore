@@ -1,0 +1,129 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# IDEs and editors
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.zed/
+.gemini/
+.codex/
+config/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+.npm
+.eslintcache
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# MCP and Agent Skills
+mcps/
+.mcp.json
+mcp.json
+opencode.json
+agent-transcripts/
+terminals/
+
+# Reference Documents (keep local only)
+"Reference Docs"/
+
+# Temporary and cache files
+tmp/
+temp/
+.tmp/
+.cache/
+.parcel-cache/
+
+# Manim output
+media/
+*.mp4
+*.png
+videos/
+images/
+
+# Local data
+data/
+*.json.bak
+students_backup.json
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+.AppleDouble
+.LSOverride
+
+# Windows
+desktop.ini
+
+# Folder view configuration files
+.DS_Store
+Desktop.ini
+
+# Thumbnail cache files
+._*
+Thumbs.db
+
+# Files that might appear on external disks
+.Spotlight-V100
+.Trashes
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Local development folders that should not be committed
+manim-service/

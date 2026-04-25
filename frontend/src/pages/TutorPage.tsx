@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { Send, RotateCcw, BookOpen, Lightbulb } from 'lucide-react';
+import { Send, RotateCcw, BookOpen, Lightbulb, Type, Image, Mic } from 'lucide-react';
 
 // Components
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import AnimatedBlackboard from '@/components/AnimatedBlackboard';
 import QuestionInput from '@/components/QuestionInput';
+import ImageUpload from '@/components/ImageUpload';
+import VoiceInput from '@/components/VoiceInput';
 
 // Utils and types
 import { apiClient, handleAPIError } from '@/utils/api';
@@ -32,6 +34,9 @@ const TutorPage: React.FC<TutorPageProps> = ({
   const [explanation, setExplanation] = useState<ExplanationResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showFollowUp, setShowFollowUp] = useState(false);
+  
+  // Phase 2: Input modality state
+  const [inputMode, setInputMode] = useState<'text' | 'image' | 'voice'>('text');
 
   // Handle question submission
   const handleQuestionSubmit = useCallback(async (question: string) => {
@@ -76,6 +81,13 @@ const TutorPage: React.FC<TutorPageProps> = ({
     setCurrentQuestion(followUpQuestion);
     handleQuestionSubmit(followUpQuestion);
   };
+
+  // Phase 2: Handle extracted text from image or voice
+  const handleExtractedText = useCallback((extractedText: string) => {
+    setCurrentQuestion(extractedText);
+    // Automatically process the extracted text
+    handleQuestionSubmit(extractedText);
+  }, [handleQuestionSubmit]);
 
   // Reset the session
   const handleReset = () => {
@@ -134,42 +146,14 @@ const TutorPage: React.FC<TutorPageProps> = ({
         </p>
       </div>
 
-      {/* Question Input */}
+      {/* Question Input - Phase 2 Enhanced */}
       <div className="card">
-        <div className="flex items-center space-x-2 mb-4">
-          <BookOpen className="w-5 h-5 text-primary-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Ask Your Question</h2>
-        </div>
-        
-        <QuestionInput
-          value={currentQuestion}
-          onChange={setCurrentQuestion}
-          onSubmit={() => handleQuestionSubmit(currentQuestion)}
-          isLoading={isGenerating}
-          placeholder="What would you like to learn about today?"
-          className="mb-4"
-        />
-
-        {/* Action buttons */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => handleQuestionSubmit(currentQuestion)}
-            disabled={isGenerating || !currentQuestion.trim()}
-            className="btn-primary flex items-center space-x-2"
-          >
-            {isGenerating ? (
-              <>
-                <LoadingSpinner size="sm" />
-                <span>Generating explanation...</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                <span>Get Explanation</span>
-              </>
-            )}
-          </button>
-
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <BookOpen className="w-5 h-5 text-primary-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Ask Your Question</h2>
+          </div>
+          
           {explanation && (
             <button
               onClick={handleReset}
@@ -180,6 +164,108 @@ const TutorPage: React.FC<TutorPageProps> = ({
             </button>
           )}
         </div>
+
+        {/* Input Mode Tabs */}
+        <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg">
+          <button
+            onClick={() => setInputMode('text')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              inputMode === 'text'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Type className="w-4 h-4" />
+            <span>Type</span>
+          </button>
+          
+          <button
+            onClick={() => setInputMode('image')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              inputMode === 'image'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Image className="w-4 h-4" />
+            <span>Image</span>
+          </button>
+          
+          <button
+            onClick={() => setInputMode('voice')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              inputMode === 'voice'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Mic className="w-4 h-4" />
+            <span>Voice</span>
+          </button>
+        </div>
+
+        {/* Input Content Based on Mode */}
+        {inputMode === 'text' && (
+          <div>
+            <p className="text-sm text-gray-600 mb-3">
+              Type your question directly or copy-paste from anywhere.
+            </p>
+            <QuestionInput
+              value={currentQuestion}
+              onChange={setCurrentQuestion}
+              onSubmit={() => handleQuestionSubmit(currentQuestion)}
+              isLoading={isGenerating}
+              placeholder="What would you like to learn about today?"
+              className="mb-4"
+            />
+
+            <button
+              onClick={() => handleQuestionSubmit(currentQuestion)}
+              disabled={isGenerating || !currentQuestion.trim()}
+              className="btn-primary flex items-center space-x-2"
+            >
+              {isGenerating ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>Generating explanation...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Get Explanation</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {inputMode === 'image' && (
+          <div>
+            <p className="text-sm text-gray-600 mb-3">
+              Upload a photo of homework, textbook pages, or handwritten problems. Perfect for math equations and diagrams.
+            </p>
+            <ImageUpload
+              studentId={studentId}
+              gradeLevel={gradeLevel}
+              language={language}
+              onTextExtracted={handleExtractedText}
+            />
+          </div>
+        )}
+
+        {inputMode === 'voice' && (
+          <div>
+            <p className="text-sm text-gray-600 mb-3">
+              Record your question by speaking. Great for complex problems that are easier to explain verbally.
+            </p>
+            <VoiceInput
+              studentId={studentId}
+              gradeLevel={gradeLevel}
+              language={language}
+              onTextTranscribed={handleExtractedText}
+            />
+          </div>
+        )}
       </div>
 
       {/* Starter questions (shown when no explanation is active) */}

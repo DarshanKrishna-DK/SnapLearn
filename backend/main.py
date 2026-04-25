@@ -21,11 +21,16 @@ from models import (
     VideoResponse,
     StudentProfile,
     AssessmentRequest,
-    AssessmentResponse
+    AssessmentResponse,
+    MultiModalRequest,
+    ImageUploadRequest,
+    VoiceUploadRequest,
+    ProcessedInputResponse
 )
 from memory import MemoryManager
 from tutor_engine import TutorEngine
 from manim_generator import ManimGenerator
+from input_processor import InputProcessor
 from utils import setup_logging, validate_environment
 
 # Setup logging
@@ -63,6 +68,7 @@ app.mount("/videos", StaticFiles(directory="../videos"), name="videos")
 memory_manager = MemoryManager()
 tutor_engine = TutorEngine()
 manim_generator = ManimGenerator()
+input_processor = InputProcessor()
 
 # Health check endpoint
 @app.get("/health")
@@ -75,7 +81,8 @@ async def health_check():
         "services": {
             "memory": memory_manager.is_healthy(),
             "tutor": tutor_engine.is_healthy(),
-            "manim": manim_generator.is_healthy()
+            "manim": manim_generator.is_healthy(),
+            "input_processor": input_processor.is_healthy()
         }
     }
 
@@ -201,6 +208,100 @@ async def get_student_videos(student_id: str):
         return {"videos": videos}
     except Exception as e:
         logger.error(f"Error getting student videos: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Phase 2: Multimodal Input Endpoints
+@app.post("/api/process-image", response_model=ProcessedInputResponse)
+async def process_image_input(request: ImageUploadRequest):
+    """
+    Process image input (OCR, math problem extraction, etc.)
+    """
+    try:
+        logger.info(f"Processing image input for student {request.student_id}")
+        
+        # Decode base64 image data
+        import base64
+        image_data = base64.b64decode(request.image_data)
+        
+        # Process the image
+        result = await input_processor.process_input(
+            input_data=image_data,
+            input_type="image",
+            student_id=request.student_id,
+            context=request.context
+        )
+        
+        # Log the processing result
+        await memory_manager.update_student_interaction(
+            student_id=request.student_id,
+            question=f"Image input: {result.get('normalized_text', 'No text extracted')}",
+            explanation="Image processed for text extraction",
+            grade_level=request.grade_level.value
+        )
+        
+        return ProcessedInputResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Error processing image input: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process-voice", response_model=ProcessedInputResponse)
+async def process_voice_input(request: VoiceUploadRequest):
+    """
+    Process voice input (speech-to-text conversion)
+    """
+    try:
+        logger.info(f"Processing voice input for student {request.student_id}")
+        
+        # Decode base64 audio data
+        import base64
+        audio_data = base64.b64decode(request.audio_data)
+        
+        # Process the audio
+        result = await input_processor.process_input(
+            input_data=audio_data,
+            input_type="voice",
+            student_id=request.student_id,
+            context=request.context
+        )
+        
+        # Log the processing result
+        await memory_manager.update_student_interaction(
+            student_id=request.student_id,
+            question=f"Voice input: {result.get('normalized_text', 'No speech recognized')}",
+            explanation="Voice processed for speech-to-text",
+            grade_level=request.grade_level.value
+        )
+        
+        return ProcessedInputResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Error processing voice input: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process-text", response_model=ProcessedInputResponse)
+async def process_text_input(request: MultiModalRequest):
+    """
+    Process and normalize text input (language detection, math extraction)
+    """
+    try:
+        logger.info(f"Processing text input for student {request.student_id}")
+        
+        # Get text from context or create a sample
+        text_content = request.context or "Sample text for processing"
+        
+        # Process the text
+        result = await input_processor.process_input(
+            input_data=text_content,
+            input_type="text",
+            student_id=request.student_id,
+            context=request.context
+        )
+        
+        return ProcessedInputResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Error processing text input: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # SDK Demo endpoints

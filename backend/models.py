@@ -57,6 +57,26 @@ class QuestionRequest(BaseModel):
     language: LanguageCode = Field(default=LanguageCode.ENGLISH, description="Preferred language")
     context: Optional[str] = Field(None, description="Additional context for the question")
 
+class MultiModalRequest(BaseModel):
+    """Request model for multimodal input processing"""
+    student_id: str = Field(..., description="Unique student identifier")
+    grade_level: GradeLevel = Field(..., description="Student's grade level")
+    language: LanguageCode = Field(default=LanguageCode.ENGLISH, description="Preferred language")
+    input_type: str = Field(..., description="Type of input: text, image, voice")
+    context: Optional[str] = Field(None, description="Additional context for processing")
+
+class ImageUploadRequest(MultiModalRequest):
+    """Request model for image upload processing"""
+    input_type: str = Field(default="image", description="Input type is image")
+    image_data: str = Field(..., description="Base64 encoded image data")
+    image_format: str = Field(..., description="Image format (jpg, png, etc.)")
+
+class VoiceUploadRequest(MultiModalRequest):
+    """Request model for voice upload processing"""
+    input_type: str = Field(default="voice", description="Input type is voice")
+    audio_data: str = Field(..., description="Base64 encoded audio data")
+    audio_format: str = Field(..., description="Audio format (wav, mp3, etc.)")
+
 class VideoRequest(BaseModel):
     """Request model for video generation endpoint"""
     topic: str = Field(..., description="Topic for video generation")
@@ -120,6 +140,19 @@ class AssessmentResponse(BaseModel):
     suggestions: List[str] = Field(default_factory=list, description="Suggestions for improvement")
     next_explanation_style: Optional[str] = Field(None, description="Recommended explanation style")
     timestamp: datetime = Field(default_factory=datetime.now, description="Assessment timestamp")
+
+class ProcessedInputResponse(BaseModel):
+    """Response model for processed multimodal input"""
+    success: bool = Field(..., description="Whether processing was successful")
+    input_type: str = Field(..., description="Type of input processed")
+    normalized_text: str = Field(..., description="Cleaned and normalized text")
+    detected_language: str = Field(..., description="Detected language code")
+    confidence_score: float = Field(..., description="Processing confidence (0-1)")
+    math_expressions: List[str] = Field(default_factory=list, description="Extracted mathematical expressions")
+    processing_time_ms: float = Field(..., description="Processing time in milliseconds")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    original_content: Optional[str] = Field(None, description="Original content (text/transcription)")
+    error: Optional[str] = Field(None, description="Error message if processing failed")
 
 # Student Profile and Memory Models
 class ConceptMastery(BaseModel):

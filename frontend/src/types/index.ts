@@ -37,6 +37,27 @@ export interface AssessmentRequest {
   expected_answer?: string;
 }
 
+// Phase 2: Multimodal Input Types
+export interface MultiModalRequest {
+  student_id: string;
+  grade_level: GradeLevel;
+  language?: LanguageCode;
+  input_type: 'text' | 'image' | 'voice';
+  context?: string;
+}
+
+export interface ImageUploadRequest extends MultiModalRequest {
+  input_type: 'image';
+  image_data: string; // Base64 encoded
+  image_format: string;
+}
+
+export interface VoiceUploadRequest extends MultiModalRequest {
+  input_type: 'voice';
+  audio_data: string; // Base64 encoded
+  audio_format: string;
+}
+
 // Animation and Board Script Types
 export interface BoardStep {
   step: number;
@@ -84,6 +105,19 @@ export interface AssessmentResponse {
   suggestions: string[];
   next_explanation_style?: string;
   timestamp: string;
+}
+
+export interface ProcessedInputResponse {
+  success: boolean;
+  input_type: string;
+  normalized_text: string;
+  detected_language: string;
+  confidence_score: number;
+  math_expressions: string[];
+  processing_time_ms: number;
+  metadata: Record<string, any>;
+  original_content?: string;
+  error?: string;
 }
 
 // Student Profile Types

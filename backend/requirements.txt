@@ -35,3 +35,9 @@ flake8==7.1.1
 opencv-python==4.10.0.84
 numpy==2.2.1
 matplotlib==3.10.0
+
+# Phase 2: Input Processing Dependencies
+Pillow==11.0.0
+SpeechRecognition==3.12.0
+pydub==0.25.1
+langdetect==1.0.9

@@ -11,6 +11,10 @@ import {
   StudentProfile,
   LearningStats,
   APIError,
+  ImageUploadRequest,
+  VoiceUploadRequest,
+  MultiModalRequest,
+  ProcessedInputResponse,
 } from '@/types';
 
 class SnapLearnAPIClient {
@@ -126,6 +130,22 @@ class SnapLearnAPIClient {
 
   async getDebugMemory(): Promise<any> {
     const response = await this.client.get('/api/debug/memory');
+    return response.data;
+  }
+
+  // Phase 2: Multimodal input processing endpoints
+  async processImage(request: ImageUploadRequest): Promise<ProcessedInputResponse> {
+    const response = await this.client.post('/api/process-image', request);
+    return response.data;
+  }
+
+  async processVoice(request: VoiceUploadRequest): Promise<ProcessedInputResponse> {
+    const response = await this.client.post('/api/process-voice', request);
+    return response.data;
+  }
+
+  async processText(request: MultiModalRequest): Promise<ProcessedInputResponse> {
+    const response = await this.client.post('/api/process-text', request);
     return response.data;
   }
 

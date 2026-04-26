@@ -175,6 +175,54 @@ class StudentProfile:
                 return DifficultyLevel.EASY
         return self.difficulty_preference
 
+
+def _enums_to_values(obj: Any) -> Any:
+    """Recursively turn Enum instances into .value for JSON."""
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, dict):
+        return {k: _enums_to_values(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_enums_to_values(x) for x in obj]
+    return obj
+
+
+def _parse_quiz_result_dict(q: dict) -> QuizResult:
+    d = dict(q)
+    diff = d.get("difficulty", "medium")
+    d["difficulty"] = DifficultyLevel(diff) if isinstance(diff, str) else diff
+    return QuizResult(**d)
+
+
+def _enum_or_str(e: Any, kind: type) -> str:
+    if isinstance(e, kind):
+        return e.value
+    return str(e) if e is not None else ""
+
+
+def profile_to_api_payload(profile: "StudentProfile") -> dict:
+    """Shape returned by GET /api/student/.../profile and quiz submit (learner_profile)."""
+    return {
+        "student_id": profile.student_id,
+        "grade": profile.grade,
+        "learning_style": _enum_or_str(profile.learning_style, LearningStyle),
+        "difficulty_preference": _enum_or_str(profile.difficulty_preference, DifficultyLevel),
+        "quiz_accuracy": profile.quiz_accuracy,
+        "total_quizzes": profile.total_quizzes,
+        "total_learning_time_minutes": profile.total_learning_time_minutes,
+        "strengths": list(profile.strengths),
+        "weaknesses": list(profile.weaknesses),
+        "recent_quiz_history": [
+            _enums_to_values(asdict(qr)) for qr in (profile.quiz_history[-5:] if profile.quiz_history else [])
+        ],
+        "recent_sessions": [asdict(s) for s in (profile.learning_sessions[-3:] if profile.learning_sessions else [])],
+        "video_progress": [asdict(v) for v in (profile.video_progress[-5:] if profile.video_progress else [])],
+        "recommended_difficulty": profile.get_recommended_content_level().value,
+        "created_at": profile.created_at,
+        "last_updated": profile.last_updated,
+    }
+
+
 class StudentProfileManager:
     """Manages student profiles with file-based storage"""
     
@@ -191,11 +239,15 @@ class StudentProfileManager:
         
         if os.path.exists(profile_path):
             try:
-                with open(profile_path, 'r') as f:
+                with open(profile_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
-                # Convert dictionaries back to dataclasses
-                data['quiz_history'] = [QuizResult(**q) for q in data.get('quiz_history', [])]
+                if isinstance(data.get("learning_style"), str):
+                    data["learning_style"] = LearningStyle(data["learning_style"])
+                if isinstance(data.get("difficulty_preference"), str):
+                    data["difficulty_preference"] = DifficultyLevel(data["difficulty_preference"])
+                # Convert dictionaries back to dataclasses (difficulty as string in JSON)
+                data['quiz_history'] = [_parse_quiz_result_dict(q) for q in data.get('quiz_history', [])]
                 data['learning_sessions'] = [LearningSession(**s) for s in data.get('learning_sessions', [])]
                 data['video_progress'] = [VideoProgress(**v) for v in data.get('video_progress', [])]
                 
@@ -212,10 +264,8 @@ class StudentProfileManager:
         profile_path = self._get_profile_path(profile.student_id)
         
         try:
-            # Convert to dict for JSON serialization
-            profile_dict = asdict(profile)
-            
-            with open(profile_path, 'w') as f:
+            profile_dict = _enums_to_values(asdict(profile))
+            with open(profile_path, 'w', encoding='utf-8') as f:
                 json.dump(profile_dict, f, indent=2)
         except Exception as e:
             print(f"Error saving profile for {profile.student_id}: {e}")

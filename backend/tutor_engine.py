@@ -1,6 +1,6 @@
 """
 Tutor Engine for SnapLearn AI
-Handles AI tutoring logic using Gemini API with personalized prompts
+Handles AI tutoring logic using the Google Gemini API only
 """
 
 import os
@@ -18,43 +18,21 @@ from models import (
 )
 
 from utils import schedule_async_init
+from llm_service import get_llm_service
 
 logger = logging.getLogger(__name__)
 
 class TutorEngine:
-    """Handles AI tutoring logic with Gemini API"""
+    """Handles AI tutoring logic with Gemini API (see llm_service)"""
     
     def __init__(self):
-        self.gemini_client = None
+        self.llm = get_llm_service()
         self.prompts_dir = "../prompts"
-        self.model_name = "gemini-2.5-flash"
         
         # Load prompt templates
         self._load_prompts()
         
-        # Initialize Gemini client
-        schedule_async_init(self._init_gemini())
-    
-    async def _init_gemini(self):
-        """Initialize Gemini API client"""
-        try:
-            from google import genai
-            
-            # Get API key from environment
-            api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                logger.error("Gemini API key not found in environment variables")
-                return
-            
-            # Initialize client
-            self.gemini_client = genai.Client(api_key=api_key)
-            
-            logger.info("Gemini API client initialized successfully")
-            
-        except ImportError:
-            logger.error("Google GenAI library not installed. Run: pip install google-genai")
-        except Exception as e:
-            logger.error(f"Error initializing Gemini client: {str(e)}")
+        logger.info("TutorEngine initialized with LLM service (Gemini API)")
     
     def _load_prompts(self):
         """Load prompt templates from files"""
@@ -105,21 +83,30 @@ STUDENT CONTEXT:
 
 QUESTION: {question}
 
-Your task is to provide a clear, grade-appropriate explanation and create an animated blackboard script.
+Your task is to provide a clear, grade-appropriate explanation with visual diagrams and create an animated blackboard script.
 
 RESPONSE FORMAT (JSON):
 {{
   "explanation_text": "Main explanation in natural language",
+  "mermaid_diagrams": [
+    {{
+      "title": "Diagram title",
+      "description": "What this diagram shows",
+      "mermaid_code": "graph TD\\n    A[Start] --> B[Process]\\n    B --> C[End]",
+      "diagram_type": "flowchart|sequence|mindmap|timeline|class|state"
+    }}
+  ],
   "board_script": {{
     "steps": [
       {{
         "step": 1,
         "content": "Content to display",
-        "type": "title|body|equation|highlight|diagram",
+        "type": "title|body|equation|highlight|diagram|mermaid",
+        "mermaid_code": "Optional Mermaid diagram code for this step",
         "draw_duration_ms": 1000
       }}
     ],
-    "total_duration_ms": 5000,
+    "total_duration_ms": 8000,
     "background_color": "#000000",
     "text_color": "#FFFFFF"
   }},
@@ -129,14 +116,22 @@ RESPONSE FORMAT (JSON):
   "confidence_score": 0.95
 }}
 
-GUIDELINES:
-1. Match the student's grade level and learning style
+PRODUCTION-GRADE GUIDELINES:
+1. Match the student's grade level and learning style precisely
 2. Use simple language for lower grades, more complex for higher grades
-3. Create board_script with at least 4-6 animation steps
-4. Include worked examples when relevant
-5. Adapt to previous confusion/success patterns
-6. Use the student's preferred language
-7. Make animations engaging with appropriate timing
+3. Create board_script with 6-10 comprehensive animation steps
+4. Include worked examples and step-by-step breakdowns
+5. Generate relevant Mermaid diagrams for visual learners:
+   - Flowcharts for processes and procedures
+   - Mind maps for concept relationships  
+   - Sequence diagrams for step-by-step processes
+   - Class diagrams for categorization
+   - State diagrams for changes over time
+6. Adapt to previous confusion/success patterns
+7. Use the student's preferred language
+8. Make animations engaging with appropriate timing (longer for complex concepts)
+9. Ensure diagrams are age-appropriate and support the explanation
+10. Use proper Mermaid syntax and clear, readable diagram structures
 
 Generate your response:""",
 
@@ -249,20 +244,18 @@ Generate your adapted explanation:"""
                                  grade_level: str, language: str) -> ExplanationResponse:
         """Generate personalized explanation for student question"""
         try:
-            if not self.gemini_client:
-                raise Exception("Gemini client not initialized")
-            
             # Build personalized prompt
             prompt = self._build_explanation_prompt(question, student_profile, grade_level, language)
             
-            # Call Gemini API
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
+            # Call LLM (Gemini API)
+            response_text = await self.llm.generate(
+                prompt=prompt,
+                temperature=0.7,
+                max_tokens=1500,
             )
             
             # Parse response
-            result = self._parse_explanation_response(response.text)
+            result = self._parse_explanation_response(response_text)
             
             return ExplanationResponse(**result)
             
@@ -297,17 +290,19 @@ Generate your adapted explanation:"""
             return f"Please explain this for a grade {grade_level} student: {question}"
     
     def _parse_explanation_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse Gemini response into structured format"""
+        """Parse production-grade Gemini response with Mermaid diagram support"""
         try:
             # Try to parse as JSON first
             if response_text.strip().startswith('{'):
-                return json.loads(response_text)
+                parsed = json.loads(response_text)
+                return self._validate_and_enhance_response(parsed)
             
             # If not JSON, extract JSON from markdown code blocks
             import re
             json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group(1))
+                parsed = json.loads(json_match.group(1))
+                return self._validate_and_enhance_response(parsed)
             
             # If still no JSON, create structured response from text
             return self._create_structured_response_from_text(response_text)
@@ -315,6 +310,20 @@ Generate your adapted explanation:"""
         except Exception as e:
             logger.error(f"Error parsing response: {str(e)}")
             return self._create_structured_response_from_text(response_text)
+
+    def _validate_and_enhance_response(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and enhance response with production-grade defaults"""
+        # Ensure mermaid_diagrams field exists
+        if "mermaid_diagrams" not in parsed:
+            parsed["mermaid_diagrams"] = []
+        
+        # Validate board script steps have mermaid support
+        if "board_script" in parsed and "steps" in parsed["board_script"]:
+            for step in parsed["board_script"]["steps"]:
+                if "mermaid_code" not in step:
+                    step["mermaid_code"] = None
+                    
+        return parsed
     
     def _create_structured_response_from_text(self, text: str) -> Dict[str, Any]:
         """Create structured response from plain text"""
@@ -343,6 +352,7 @@ Generate your adapted explanation:"""
         
         return {
             "explanation_text": text,
+            "mermaid_diagrams": [],  # Production-grade: always include mermaid field
             "board_script": board_script,
             "difficulty_level": "medium",
             "key_concepts": ["General concept"],
@@ -354,20 +364,11 @@ Generate your adapted explanation:"""
                           student_profile: StudentProfile, expected_answer: str = None) -> AssessmentResponse:
         """Assess student's answer and provide feedback"""
         try:
-            if not self.gemini_client:
-                raise Exception("Gemini client not initialized")
-            
-            # Build assessment prompt
+            if not self.llm:
+                return self._create_fallback_assessment(student_answer)
             prompt = self._build_assessment_prompt(question, student_answer, student_profile, expected_answer)
-            
-            # Call Gemini API
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            
-            # Parse response
-            result = self._parse_assessment_response(response.text)
+            response_text = await self.llm.generate(prompt=prompt, max_tokens=1500)
+            result = self._parse_assessment_response(response_text)
             
             return AssessmentResponse(**result)
             
@@ -488,21 +489,15 @@ Generate your adapted explanation:"""
                              interaction_history: List[Dict]) -> Dict[str, Any]:
         """Detect confusion patterns in student responses"""
         try:
-            if not self.gemini_client:
+            if not self.llm:
                 return {"confusion_detected": False}
-            
             prompt = self.prompts["confusion_detection"].format(
                 interaction_history=json.dumps(interaction_history[-5:]),  # Last 5 interactions
                 question=question,
                 student_response=student_response
             )
-            
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            
-            return self._parse_json_response(response.text, {
+            text = await self.llm.generate(prompt=prompt, max_tokens=1000)
+            return self._parse_json_response(text, {
                 "confusion_detected": False,
                 "confusion_level": "low",
                 "confusion_areas": [],
@@ -518,9 +513,8 @@ Generate your adapted explanation:"""
                                     requested_style: str) -> Dict[str, Any]:
         """Adapt explanation to different learning style"""
         try:
-            if not self.gemini_client:
+            if not self.llm:
                 return {"adapted_explanation": f"Basic explanation of {topic}"}
-            
             prompt = self.prompts["style_adaptation"].format(
                 grade_level=student_profile.grade_level.value,
                 learning_style=student_profile.learning_style.value,
@@ -529,13 +523,8 @@ Generate your adapted explanation:"""
                 topic=topic,
                 requested_style=requested_style
             )
-            
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            
-            return self._parse_json_response(response.text, {
+            text = await self.llm.generate(prompt=prompt, max_tokens=2000)
+            return self._parse_json_response(text, {
                 "adapted_explanation": f"Explanation of {topic} using {requested_style} approach",
                 "board_script": {"steps": [], "total_duration_ms": 0},
                 "style_rationale": f"This {requested_style} approach should help with understanding"
@@ -562,5 +551,10 @@ Generate your adapted explanation:"""
             return fallback
     
     def is_healthy(self) -> bool:
-        """Check if tutor engine is healthy"""
-        return self.gemini_client is not None and bool(self.prompts)
+        """Gemini is configured and prompts are loaded."""
+        if not self.prompts:
+            return False
+        try:
+            return self.llm is not None and self.llm.is_healthy()
+        except Exception:
+            return False

@@ -1,38 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-/**
- * Custom hook for managing state in localStorage
- * @param key - The key to store the value under in localStorage
- * @param initialValue - The initial value to use if nothing is in localStorage
- * @returns A tuple containing the current value and a setter function
- */
-export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((prev: T) => T)) => void] {
-  // Get value from localStorage or use initial value
-  const [storedValue, setStoredValue] = useState<T>(() => {
+export function useLocalStorage<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => {
     try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
-      return initialValue;
+      const s = localStorage.getItem(key);
+      if (s) return JSON.parse(s) as T;
+    } catch {
+      /* ignore */
     }
+    return initial;
   });
 
-  // Return a wrapped version of useState's setter function that persists the new value to localStorage
-  const setValue = (value: T | ((prev: T) => T)) => {
-    try {
-      // Allow value to be a function so we have the same API as useState
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      
-      // Save state
-      setStoredValue(valueToStore);
-      
-      // Save to localStorage
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
-    }
-  };
+  const set = useCallback(
+    (v: T | ((prev: T) => T)) => {
+      setValue((prev) => {
+        const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v;
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    },
+    [key]
+  );
 
-  return [storedValue, setValue];
+  useEffect(() => {
+    const on = (e: StorageEvent) => {
+      if (e.key === key && e.newValue) {
+        try {
+          setValue(JSON.parse(e.newValue) as T);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    window.addEventListener('storage', on);
+    return () => window.removeEventListener('storage', on);
+  }, [key]);
+
+  return [value, set] as const;
 }

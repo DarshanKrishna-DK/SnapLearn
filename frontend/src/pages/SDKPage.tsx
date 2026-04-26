@@ -1,213 +1,294 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { apiClient } from '../utils/api';
+import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { PixelButton } from '@/components/PixelButton';
 
-const codeExamples: Record<string, { install: string; setup: string; usage: string }> = {
-  javascript: {
-    install: 'npm install @snaplearn/sdk',
-    setup: "import { SnapLearnClient } from '@snaplearn/sdk';\nconst client = new SnapLearnClient({ baseUrl: '' });",
-    usage: `const res = await client.explain({ question, student_id, grade_level, language });`,
-  },
-  python: {
-    install: 'pip install snaplearn-client',
-    setup: 'from snaplearn import Client\nclient = Client(base_url="")',
-    usage: 'res = client.explain(question=..., student_id=..., grade_level=..., language=...)',
-  },
-  curl: {
-    install: '# use curl with your local API',
-    setup: 'export API=http://localhost:8000',
-    usage: 'curl -sS "$API/api/ping"',
-  },
-};
+const coreEndpoints = [
+  { method: 'POST', path: '/api/lesson/structured', desc: 'Structured lessons with chalkboard, diagrams, and timed response (4 to 10 seconds). Matrices uses a formal track first, then an applied track after a matrices quiz with at least one incorrect answer.' },
+  { method: 'POST', path: '/api/video/program', desc: 'Full program metadata with about a one minute pipeline, 7+ minute run length, captions and narration plan, and a short browser preview stream.' },
+  { method: 'POST', path: '/api/quiz/generate', desc: 'Gemini generates items from topic, grade, and count (3, 5, or 10). Personalizes from the learner profile.' },
+  { method: 'POST', path: '/api/quiz/submit', desc: 'Grades the attempt, updates the profile, and unlocks the alternate matrices teaching track when a matrices quiz has mistakes.' },
+  { method: 'GET', path: '/api/student/{id}/profile', desc: 'Learning style, accuracy, strengths, focus areas, and recent assessments.' },
+] as const;
 
-const apiEndpoints = [
-  { method: 'POST' as const, path: '/api/explain', note: 'Tutor and blackboard pipeline' },
-  { method: 'POST' as const, path: '/api/generate-video', note: 'Manim render' },
-  { method: 'POST' as const, path: '/api/quiz/generate', note: 'Quiz generation' },
-  { method: 'GET' as const, path: '/api/student/{id}/profile', note: 'Profile JSON' },
-];
+const deckEndpoints = [
+  { method: 'POST', path: '/api/staging/explain', desc: 'Optional timed pipeline for alternate scripting (internal tooling).' },
+  { method: 'POST', path: '/api/staging/generate-video', desc: 'Optional video pipeline for staging environments.' },
+  { method: 'POST', path: '/api/staging/generate-quiz', desc: 'Optional quiz path with profile targeting (uses Gemini when configured).' },
+  { method: 'GET', path: '/api/staging/student-profile/{id}', desc: 'Profile snapshot for integration tests.' },
+  { method: 'POST', path: '/api/staging/reset-demo', desc: 'Resets session flags for a clean run-through.' },
+] as const;
 
-const SDKPage: React.FC = () => {
-  const [codeLang, setCodeLang] = useState<keyof typeof codeExamples>('javascript');
-  const [activeTab, setActiveTab] = useState<'overview' | 'quickstart' | 'api'>('overview');
-  const [pingJson, setPingJson] = useState<string | null>(null);
-  const [pingErr, setPingErr] = useState<string | null>(null);
+const advancedEndpoints = [
+  { method: 'GET', path: '/api/analytics/learning/{student_id}', desc: 'Comprehensive learning analytics including velocity tracking, concept mastery, and predictive insights.' },
+  { method: 'POST', path: '/api/conversation/start', desc: 'Multi-turn tutoring conversations with context awareness and adaptive dialogue management.' },
+  { method: 'POST', path: '/api/assessment/comprehensive', desc: 'Advanced assessment with mistake pattern detection and personalized feedback generation.' },
+  { method: 'POST', path: '/api/video/generate-contextual', desc: 'Enhanced video generation with conversation context, quality settings, and animation style preferences.' },
+] as const;
 
-  const runPing = async () => {
-    setPingErr(null);
-    setPingJson(null);
-    try {
-      const r = await apiClient.healthCheck();
-      setPingJson(JSON.stringify(r, null, 2));
-    } catch (e) {
-      setPingErr((e as Error).message || 'Request failed. Is the backend on port 8000?');
-    }
-  };
+const DEMONSTRATION_STEPS = [
+  'Start the FastAPI app on port 8000 and keep this Vite app on 3000 (proxy to /api).',
+  'Open **Open docs** to show interactive OpenAPI. Expand `POST /api/lesson/structured` or `POST /api/video/program` and **Try it out** with a JSON body (question, student_id, grade_level).',
+  'Use the **Core APIs** tab to narrate the contract. Point to **GET /api/student/{id}/profile** and show the JSON in the browser or Swagger.',
+  'Click **Test tutor**, **Try quiz**, and **Student profile** to show the same APIs driving the product UI with one student id.',
+  'On the **Staging** tab, mention optional integration routes and **Integration UI** if you use the static `sdk_demo` page.',
+] as const;
+
+export function SdkPage() {
+  const [activeTab, setActiveTab] = useState<'core' | 'deck' | 'advanced'>('core');
+  const deckStatus: 'online' | 'offline' | 'testing' = 'online';
+
+  const currentEndpoints = 
+    activeTab === 'core' ? coreEndpoints :
+    activeTab === 'deck' ? deckEndpoints :
+    advancedEndpoints;
 
   return (
-    <div className="min-h-screen bg-[var(--sl-cream)] text-[#1e1b14]">
-      <nav className="border-b border-[#debfc2] bg-white/90">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
-          <Link to="/" className="text-xs text-[#8b1538]" style={{ fontFamily: 'var(--font-pixel)' }}>
-            SnapLearn
-          </Link>
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <Link to="/" className="rounded-md px-2 py-1 text-[#3d3834] hover:bg-[#f5ebe0]">
-              Home
-            </Link>
-            <Link to="/app" className="rounded-md px-2 py-1 text-[#3d3834] hover:bg-[#f5ebe0]">
-              App
-            </Link>
-            <Link to="/docs" className="rounded-md px-2 py-1 text-[#3d3834] hover:bg-[#f5ebe0]">
-              Docs
-            </Link>
-            <span className="px-2 py-1 text-xs font-medium text-[#8b1538]">SDK</span>
-          </div>
-        </div>
-      </nav>
-
-      <section className="border-b border-[#4a0a1c]/10 bg-[#1a0a0f] text-[#fdf5e8]">
-        <div className="mx-auto max-w-5xl px-4 py-14">
-          <p className="sl-eyebrow text-[#b8a199]">// INTEGRATE SNAPLEARN</p>
-          <h1
-            className="mt-4 text-sm leading-relaxed text-balance md:text-base"
-            style={{ fontFamily: 'var(--font-pixel)' }}
-          >
-            HTTP API for explain, video, and quiz. No vanity metrics here, only your running server.
-          </h1>
-          <p className="mt-4 text-sm text-[#c4a99e]">Same maroon and cream as the product UI. No packaged npm SDK in this repo until you ship one; examples are placeholders for your client.</p>
-        </div>
-      </section>
-
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-8 flex flex-wrap justify-center gap-2">
-          {(
-            [
-              { id: 'overview' as const, label: 'Overview' },
-              { id: 'quickstart' as const, label: 'Quick start' },
-              { id: 'api' as const, label: 'API' },
-            ]
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={
-                'rounded-md border px-4 py-2 text-sm ' +
-                (activeTab === t.id
-                  ? 'border-[#8b1538] bg-[#8b1538] text-white'
-                  : 'border-[#debfc2] bg-white text-[#1e1b14] hover:border-[#8b1538]')
-              }
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === 'overview' && (
-          <div className="rounded-xl border border-[#debfc2] bg-white p-6">
-            <h2 className="text-base font-semibold text-[#1e1b14]">What you wire up</h2>
-            <ol className="mt-4 list-decimal pl-5 text-sm text-[#4a433d]">
-              <li>Run the FastAPI backend.</li>
-              <li>Point the Vite app at the same origin so <span className="font-mono">/api</span> proxies to port 8000.</li>
-              <li>Call <span className="font-mono">/api/explain</span>, <span className="font-mono">/api/generate-video</span>, and <span className="font-mono">/api/quiz/*</span> with your student and grade.</li>
-            </ol>
-          </div>
-        )}
-
-        {activeTab === 'quickstart' && (
-          <div className="space-y-4 rounded-xl border border-[#debfc2] bg-white p-6">
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(codeExamples) as (keyof typeof codeExamples)[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setCodeLang(k)}
-                  className={
-                    'rounded border px-3 py-1 text-sm ' +
-                    (codeLang === k ? 'border-[#8b1538] bg-[#8b1538] text-white' : 'border-[#debfc2] bg-[#f5ebe0]')
-                  }
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-[#5c534c]">Install (placeholder name)</h3>
-              <pre className="mt-2 overflow-x-auto rounded border border-[#1a0a0f] bg-[#1a0a0f] p-4 text-xs text-[#e8dccf]">
-                {codeExamples[codeLang].install}
-              </pre>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-[#5c534c]">Client</h3>
-              <pre className="mt-2 overflow-x-auto rounded border border-[#1a0a0f] bg-[#1a0a0f] p-4 text-xs text-[#e8dccf]">
-                {codeExamples[codeLang].setup}
-              </pre>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-[#5c534c]">Call</h3>
-              <pre className="mt-2 overflow-x-auto rounded border border-[#1a0a0f] bg-[#1a0a0f] p-4 text-xs text-[#e8dccf]">
-                {codeExamples[codeLang].usage}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'api' && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-[#debfc2] bg-white p-6">
-              <h2 className="text-base font-semibold">Endpoints (high level)</h2>
-              <ul className="mt-4 space-y-3 text-sm text-[#4a433d]">
-                {apiEndpoints.map((e) => (
-                  <li key={e.path} className="font-mono text-xs md:text-sm">
-                    <span className="text-[#8b1538]">{e.method}</span> {e.path}
-                    <span className="block pl-0 text-[#5c534c] md:inline md:pl-2">- {e.note}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border border-[#debfc2] bg-white p-6">
-              <h2 className="text-base font-semibold">Liveness (real request)</h2>
-              <p className="mt-2 text-sm text-[#5c534c]">Calls the same <span className="font-mono">/api/ping</span> the app uses. No mock JSON.</p>
-              <button
-                type="button"
-                onClick={runPing}
-                className="mt-4 rounded bg-[#8b1538] px-4 py-2 text-sm text-white hover:bg-[#6d0f2b]"
-              >
-                Run ping
-              </button>
-              {pingErr && <p className="mt-3 text-sm text-[#6d0f2b]">{pingErr}</p>}
-              {pingJson && (
-                <pre className="mt-4 max-h-48 overflow-auto rounded border border-[#1a0a0f] bg-[#1a0a0f] p-4 text-xs text-[#a8c7a0]">
-                  {pingJson}
-                </pre>
-              )}
-            </div>
-          </div>
-        )}
+    <div className="min-h-screen bg-gradient-to-br from-neutral-900 via-neutral-800 to-maroon-900/20">
+      <div className="fixed inset-0 opacity-[0.02] pointer-events-none">
+        <div 
+          className="w-full h-full"
+          style={{
+            backgroundImage: `
+              linear-gradient(90deg, #8B1538 1px, transparent 1px),
+              linear-gradient(0deg, #8B1538 1px, transparent 1px)
+            `,
+            backgroundSize: '40px 40px'
+          }}
+        />
       </div>
 
-      <section className="mt-4 border-t border-[#4a0a1c]/10 bg-[#1a0a0f]">
-        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[#c4a99e]">Build flows in your product; keep this app as the reference client.</p>
-          <div className="flex gap-2">
-            <Link
-              to="/tutor"
-              className="rounded border border-white/20 px-4 py-2 text-sm text-white hover:bg-white/10"
-            >
-              See tutor
-            </Link>
-            <Link
-              to="/videos"
-              className="rounded border border-white/20 px-4 py-2 text-sm text-white hover:bg-white/10"
-            >
-              See video
-            </Link>
+      <div className="relative z-10 px-4 py-10 max-w-6xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h1 className="font-pixel text-2xl text-maroon-400 mb-4">
+            SNAPLEARN SDK
+          </h1>
+          <p className="text-lg text-cream-200/90 font-body max-w-3xl mx-auto mb-6">
+            HTTP APIs for structured lessons, video program metadata, adaptive quizzes, and learner profiles. Use the
+            list below and Swagger to explore requests and response shapes.
+          </p>
+
+          <div className="max-w-3xl mx-auto text-left sl-plate rounded-xl p-5 mb-8 border border-cream-200/10">
+            <p className="font-pixel text-[0.5rem] text-gold-400/80 mb-3">DEMONSTRATION (5 MIN)</p>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-cream-200/85 font-body leading-relaxed">
+              {DEMONSTRATION_STEPS.map((step) => (
+                <li key={step} className="marker:text-gold-500/80">
+                  {step.split('**').map((part, i) =>
+                    i % 2 === 1 ? (
+                      <strong key={i} className="text-cream-100/95 font-semibold">
+                        {part}
+                      </strong>
+                    ) : (
+                      <span key={i}>{part}</span>
+                    )
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="flex justify-center gap-8 mb-8 flex-wrap">
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm text-green-400">API Online</span>
+            </div>
+            <div className="flex items-center gap-2 bg-maroon-500/10 border border-maroon-500/20 rounded-full px-4 py-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  deckStatus === 'online' ? 'bg-green-500' : deckStatus === 'testing' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                }`}
+              />
+              <span className="text-sm text-maroon-300">Staging {deckStatus === 'online' ? 'Ready' : deckStatus}</span>
+            </div>
+          </div>
+        </motion.div>
+
+        <div className="flex justify-center mb-8">
+          <div className="bg-cream-500/5 border border-cream-500/10 rounded-lg p-1 flex gap-1">
+            {(['core', 'deck', 'advanced'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-md transition-all text-sm font-medium ${
+                  activeTab === tab
+                    ? 'bg-maroon-500 text-white shadow-lg'
+                    : 'text-cream-400 hover:text-cream-200 hover:bg-cream-500/5'
+                }`}
+              >
+                {tab === 'core' && 'Core APIs'}
+                {tab === 'deck' && 'Staging'}
+                {tab === 'advanced' && 'Advanced'}
+              </button>
+            ))}
           </div>
         </div>
-      </section>
+
+        <div className="flex justify-center gap-4 mb-12 flex-wrap">
+          <PixelButton 
+            href={activeTab === 'deck' ? '/sdk_demo.html' : 'http://127.0.0.1:8000/docs'} 
+            variant="solid"
+            className="bg-maroon-500 hover:bg-maroon-600"
+          >
+            {activeTab === 'deck' ? 'INTEGRATION UI' : 'OPEN DOCS'}
+          </PixelButton>
+          <PixelButton href="/profile" variant="ghost">
+            STUDENT PROFILE
+          </PixelButton>
+          <PixelButton href="/tutor" variant="ghost">
+            TEST TUTOR
+          </PixelButton>
+          <PixelButton href="/quiz" variant="ghost">
+            TRY QUIZ
+          </PixelButton>
+        </div>
+
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <ol className="space-y-0 border border-cream-200/10 rounded-2xl overflow-hidden divide-y divide-cream-200/10 list-none p-0">
+            {currentEndpoints.map((endpoint, i) => (
+              <motion.li
+                key={endpoint.path + endpoint.method}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.05 * i }}
+                className="p-6 hover:bg-cream-500/5 transition-colors group"
+                style={{
+                  background: 'linear-gradient(110deg, rgba(139, 21, 56, 0.02) 0%, rgba(245, 241, 232, 0.01) 40%, rgba(0,0,0,0.1) 100%)',
+                }}
+              >
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <span className={`font-mono text-xs px-2 py-1 rounded-md font-semibold ${
+                    endpoint.method === 'GET' 
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      : 'bg-maroon-500/20 text-maroon-400 border border-maroon-500/30'
+                  }`}>
+                    {endpoint.method}
+                  </span>
+                  <code className="font-mono text-sm text-cream-200/90 break-all">
+                    {endpoint.path}
+                  </code>
+                  {activeTab === 'deck' && (
+                    <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded-md text-xs font-medium">
+                      STAGING
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-cream-200/70 font-body max-w-4xl leading-relaxed group-hover:text-cream-200/90 transition-colors">
+                  {endpoint.desc}
+                </p>
+              </motion.li>
+            ))}
+          </ol>
+        </motion.div>
+
+        {activeTab === 'core' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-12 grid md:grid-cols-2 gap-8"
+          >
+            <div className="bg-cream-500/5 border border-cream-500/10 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-cream-200 mb-4 flex items-center gap-2">
+                <span>React</span>
+              </h3>
+              <div className="bg-neutral-800 rounded-lg p-4 text-sm font-mono">
+                <pre className="text-cream-300">
+{`import { SnapLearnSDK } from '@snaplearn/react-sdk';
+
+function TutorComponent() {
+  const { explainTopic, loading } = SnapLearnSDK({
+    apiKey: process.env.SNAPLEARN_API_KEY,
+    studentId: 'student_123'
+  });
+
+  return (
+    <TutorInterface
+      onQuestion={explainTopic}
+      loading={loading}
+      adaptive={true}
+    />
+  );
+}`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="bg-cream-500/5 border border-cream-500/10 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-cream-200 mb-4 flex items-center gap-2">
+                <span>Python</span>
+              </h3>
+              <div className="bg-neutral-800 rounded-lg p-4 text-sm font-mono">
+                <pre className="text-cream-300">
+{`import requests
+
+BASE = 'https://your-api.example'
+headers = {'X-API-Key': 'your-key'}
+
+# Structured lesson with chalkboard and diagrams
+r = requests.post(
+    f'{BASE}/api/lesson/structured',
+    json={'question': 'What are matrices?', 'student_id': 'presentation-demo', 'grade_level': 10},
+    headers=headers,
+    timeout=120,
+)
+explanation = r.json()
+
+# Long-form program (metadata, captions, preview URL)
+r2 = requests.post(
+    f'{BASE}/api/video/program',
+    json={'topic': 'factorials', 'student_id': 'presentation-demo', 'grade_level': 10},
+    headers=headers,
+    timeout=300,
+)
+video = r2.json()`}
+                </pre>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'deck' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-12 bg-cream-500/5 border border-cream-200/15 rounded-xl p-6"
+          >
+            <h3 className="text-lg font-semibold text-maroon-300 mb-4">
+              Staging and integration
+            </h3>
+            <div className="space-y-4 text-cream-200/80">
+              <p>
+                <strong>Environments for QA and client pilots:</strong> The staging routes mirror production behavior with
+                controllable timing and sample payloads so teams can validate UIs, auth, and error handling before go-live.
+              </p>
+              <div className="grid md:grid-cols-3 gap-4 mt-6">
+                <div className="bg-maroon-500/10 border border-maroon-500/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-maroon-300 mb-2">Tutor and video</h4>
+                  <p className="text-sm">End-to-end flows for structured lessons and long-form video metadata with on-screen render states.</p>
+                </div>
+                <div className="bg-maroon-500/10 border border-maroon-500/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-maroon-300 mb-2">Quizzes and profiles</h4>
+                  <p className="text-sm">Gemini-backed item generation and profile updates through the same contracts as production.</p>
+                </div>
+                <div className="bg-maroon-500/10 border border-maroon-500/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-maroon-300 mb-2">Session reset</h4>
+                  <p className="text-sm">Single-call reset of learner state flags for repeatable review cycles and sales walkthroughs.</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
-};
-
-export default SDKPage;
+}

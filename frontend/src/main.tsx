@@ -1,11 +1,18 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import App from './App';
+import './index.css';
+import { AppStateProvider } from './context/AppStateContext';
 
-// Create root and render app
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+    <BrowserRouter>
+      <AppStateProvider>
+        <App />
+        <Toaster position="top-right" />
+      </AppStateProvider>
+    </BrowserRouter>
+  </React.StrictMode>
+);

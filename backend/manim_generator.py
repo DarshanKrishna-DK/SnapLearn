@@ -1,6 +1,6 @@
 """
 Manim Video Generator for SnapLearn AI
-Generates educational videos using Manim locally as subprocess
+Generates educational videos using Manim locally as subprocess; scripts from Gemini API
 """
 
 import os
@@ -16,6 +16,7 @@ from pathlib import Path
 
 from models import VideoResponse, StudentProfile
 from utils import schedule_async_init
+from llm_service import get_llm_service
 from video_narration import (
     generate_narration_text,
     synthesize_speech_to_file,
@@ -26,98 +27,108 @@ from video_narration import (
 logger = logging.getLogger(__name__)
 
 class ManimGenerator:
-    """Generates educational videos using Manim"""
+    """Generates educational videos using Manim; LLM script generation uses Gemini only."""
     
     def __init__(self):
-        self.videos_dir = Path("../videos")
-        self.temp_dir = Path("../temp_manim")
-        self.prompts_dir = Path("../prompts")
+        _root = Path(__file__).resolve().parent.parent
+        self.videos_dir = _root / "videos"
+        self.temp_dir = _root / "temp_manim"
+        self.prompts_dir = _root / "prompts"
         
         # Create directories
         self.videos_dir.mkdir(exist_ok=True)
         self.temp_dir.mkdir(exist_ok=True)
         
-        # Initialize Gemini client for script generation
-        self.gemini_client = None
-        self.model_name = "gemini-2.5-flash"
+        # LLM: Gemini API only (GOOGLE_API_KEY or GEMINI_API_KEY in .env)
+        self.llm = get_llm_service()
         
+        # Production-grade target duration: minimum 2 minutes, no maximum for comprehensive learning
+        self._target_minutes = max(2.0, float(os.getenv("MANIM_TARGET_MINUTES", "4.0")))
+
         # Create manim scene prompt template
         self._create_manim_prompt_template()
         
-        # Initialize Gemini
-        schedule_async_init(self._init_gemini())
-    
-    async def _init_gemini(self):
-        """Initialize Gemini client for script generation"""
-        try:
-            from google import genai
-            
-            api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                logger.error("Gemini API key not found for video script generation")
-                return
-            
-            self.gemini_client = genai.Client(api_key=api_key)
-            logger.info("Manim generator: Gemini client initialized")
-            
-        except ImportError:
-            logger.error("Google GenAI library not installed for video generation")
-        except Exception as e:
-            logger.error(f"Error initializing Gemini for video generation: {str(e)}")
+        logger.info("Manim generator initialized (LLM: Gemini API)")
+
+    @staticmethod
+    def _is_bad_manim_text(s: str) -> bool:
+        t = (s or "").lower().strip()
+        if not t:
+            return True
+        if "error generating" in t:
+            return True
+        if "def construct" not in t:
+            return True
+        if ("from manim" not in t) and ("import manim" not in t) and ("manim import" not in t):
+            return True
+        return False
+
+    @staticmethod
+    def _manim_has_import(s: str) -> bool:
+        s = s or ""
+        return ("from manim" in s) or ("import manim" in s) or ("from manim.utils" in s)
     
     def _create_manim_prompt_template(self):
-        """Create the Manim scene generation prompt template"""
-        prompt_template = """You are an expert at creating Manim scene scripts for educational videos.
+        """Create the Manim scene generation prompt - long, teachable runtimes in minutes"""
+        # target_minutes placeholder filled per request
+        prompt_template = """You are a production-grade Manim Community (v0.18+) expert creating comprehensive educational videos. Generate ONE complete Python file for professional-quality video content. No markdown, no backticks, only executable Python code.
+
+PRODUCTION REQUIREMENTS:
+TARGET VIDEO LENGTH: {target_minutes} minutes minimum (NO MAXIMUM). This is a professional educational video that must provide thorough, comprehensive coverage.
+TIMING CALCULATION: Plan for 60+ seconds of combined self.wait(...) calls per minute PLUS animation time. For {target_minutes} minutes, use AT LEAST {wait_time_minimum} seconds total in self.wait() calls.
 
 STUDENT CONTEXT:
-- Grade Level: {grade_level}
+- Grade Level: {grade_level}  
 - Topic: {topic}
 - Language: {language}
-- Target on-screen video length: about {target_duration_minutes} minutes (this is a goal; use run_time and self.wait to pace)
-- Number of main segments to teach: {section_count} (each segment should be clearly separated with a short pause)
-- Student Learning Profile: {student_profile_summary}
-- Optional pacing hint (spoken script summary): {narration_excerpt}
-- Optional extra context from the user/teacher: {extra_context}
+- Learning Profile: {student_profile_summary}
+- Audio Narration: This video will have professional narration and captions
 
-REQUIREMENTS:
-1. Create a complete Manim scene script for grade {grade_level}
-2. Use only Manim Community Edition v0.18+ APIs
-3. The script must be syntactically correct Python
-4. For longer videos ({target_duration_minutes} min target), you MUST add enough segments, examples, and self.wait() / run_time so the animation is not over in a few seconds
-5. Use simple vocabulary for lower grades, more advanced for higher grades
-6. Include worked examples where relevant
+MANDATORY PRODUCTION STANDARDS:
+1) Import: from manim import *
+2) Class: class ExplanationScene(Scene):
+3) Method: def construct(self):
+4) COMPREHENSIVE STRUCTURE: Create 8-12 major segments with clear progression:
+   - Engaging title sequence (20+ seconds)
+   - Concept introduction with context (40+ seconds)
+   - Multiple worked examples (60+ seconds each)  
+   - Visual breakdowns and step-by-step analysis (60+ seconds)
+   - Common misconceptions and clarifications (40+ seconds)
+   - Practice scenarios and applications (60+ seconds)
+   - Comprehensive summary and key takeaways (30+ seconds)
+   - Preview of next learning steps (20+ seconds)
 
-MANIM SCRIPT REQUIREMENTS:
-- Extend the Scene class (class name must be ExplanationScene)
-- Include a title card opening
-- Divide the lesson into {section_count} clear segments (intro, concepts, example(s), summary)
-- Use MathTex for mathematical notation where appropriate; Text for plain language
-- Use Write() for text animations and Create() for shapes; FadeOut to transition
-- Set self.wait() and animation run_time so total scene length aims toward the target minutes (e.g. multiple 15-40s segments, not 2s total)
-- End with a short recap
-- Use readable colors (e.g. WHITE, YELLOW, BLUE, GREEN on dark background)
+5) VISUAL EXCELLENCE: Rich animations with varied objects:
+   - Text, MathTex, geometric shapes, arrows, diagrams
+   - Color palette: BLUE, YELLOW, GREEN, RED, ORANGE, WHITE, MAROON, TEAL, PURPLE
+   - Transform, FadeIn, FadeOut, Write, Create, DrawBoundingRectangle
+   - Group related content with VGroup for smooth transitions
 
-RESPONSE FORMAT:
-Return ONLY the Python code for the Manim scene, no explanations or markdown.
+6) PACING FOR LEARNING: Strategic wait times for comprehension:
+   - Title screens: self.wait(8-12)
+   - Complex concepts: self.wait(10-15) 
+   - After equations: self.wait(6-10)
+   - Between examples: self.wait(5-8)
+   - Final summary: self.wait(12-20)
 
-Example structure:
-```python
-from manim import *
+7) AUDIO-READY DESIGN: Content structured for narration:
+   - Clear visual hierarchy matching audio flow
+   - Highlight key terms that will be emphasized in narration
+   - Pause points aligned with natural speech patterns
 
-class ExplanationScene(Scene):
-    def construct(self):
-        # Title card
-        title = Text("{topic}", font_size=48, color=BLUE)
-        self.play(Write(title))
-        self.wait(2)
-        self.play(FadeOut(title))
-        
-        # Main content scenes...
-        # Include worked examples...
-        # Summary scene...
-```
+8) EDUCATIONAL DEPTH: 
+   - Multiple approaches to the same concept
+   - Real-world connections and applications  
+   - Building complexity progressively
+   - Clear connections between ideas
 
-Generate the Manim script for topic: {topic} with approximate length target {target_duration_minutes} minutes."""
+NARRATION CONTEXT (design visuals to support this audio):
+{narration_excerpt}
+
+ADDITIONAL CONTEXT:
+{extra_context}
+
+OUTPUT: Complete Python source code only. Create a video worthy of professional educational standards that provides comprehensive learning value for {target_minutes}+ minutes."""
         
         # Save the prompt template
         prompt_file = self.prompts_dir / "manim_scene.txt"
@@ -128,9 +139,8 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
         self.manim_prompt_template = prompt_template
     
     @staticmethod
-    def _section_count_for_duration(target_minutes: float) -> int:
-        t = max(0.5, min(15.0, float(target_minutes or 5.0)))
-        return max(4, min(20, int(3 + t * 1.15)))
+    def _section_count_for_duration(target_minutes: float = 3.0) -> int:
+        return 4
 
     async def generate_video(
         self,
@@ -138,36 +148,42 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
         grade_level: str,
         student_profile: StudentProfile,
         language: str = "en",
-        target_duration_minutes: float = 5.0,
         enable_tts: bool = True,
         extra_context: Optional[str] = None,
     ) -> VideoResponse:
-        """Generate educational video for given topic, optional TTS, configurable length target."""
+        """Generate educational video with RICH visual demonstrations (no user duration input)."""
         try:
-            tmin = max(0.5, min(15.0, float(target_duration_minutes or 5.0)))
-            logger.info("Starting video generation for topic: %s (target ~%s min, tts=%s)", topic, tmin, enable_tts)
+            if not self.is_healthy():
+                return self._create_fallback_video_response(
+                    topic,
+                    "Manim is not available in this Python environment. "
+                    f"Install project deps with: \"{sys.executable}\" -m pip install -r requirements.txt "
+                    "from the repository backend folder (or pip install manim in the same venv that runs the API).",
+                )
+            logger.info("Starting video generation for topic: %s (production visual mode, tts=%s)", topic, enable_tts)
 
             narration_text = ""
-            if enable_tts and self.gemini_client:
+            gem = getattr(self.llm, "gemini_client", None) if self.llm else None
+            model = getattr(self.llm, "gemini_model", "gemini-2.0-flash") if self.llm else "gemini-2.0-flash"
+            if enable_tts and gem:
                 narration_text = await generate_narration_text(
-                    self.gemini_client,
-                    self.model_name,
+                    gem,
+                    model,
                     topic,
                     str(grade_level),
                     language,
-                    tmin,
+                    3.0,
                     extra_context=extra_context,
                 )
             if (narration_text or "").strip():
                 excerpt = (narration_text[:800] + "…") if len(narration_text) > 800 else narration_text
             else:
-                excerpt = f"Narration disabled or unavailable. Teach {topic} for grade {grade_level} with depth suitable for a ~{tmin} minute lesson."
+                excerpt = f"Visual demonstration lesson on {topic} for grade {grade_level}. Show multiple examples with animations and step-by-step transformations."
             manim_script = await self._generate_manim_script(
                 topic,
                 grade_level,
                 student_profile,
                 language,
-                target_duration_minutes=tmin,
                 extra_context=extra_context,
                 narration_excerpt=excerpt,
             )
@@ -178,7 +194,7 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
             if not self._validate_manim_script(manim_script):
                 manim_script = await self._fix_manim_script(manim_script, topic)
 
-            video_info = await self._render_manim_video(manim_script, topic, target_duration_minutes=tmin)
+            video_info = await self._render_manim_video(manim_script, topic, self._target_minutes)
             lp = video_info.pop("local_video_path", None)
             vpath = Path(lp) if isinstance(lp, str) else (lp if isinstance(lp, Path) else None)
 
@@ -226,59 +242,146 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
             logger.error(f"Error generating video: {str(e)}")
             return self._create_fallback_video_response(topic, str(e))
     
+    def _ls_style(self, student_profile: StudentProfile) -> str:
+        ls = getattr(student_profile, "learning_style", None)
+        if ls is None:
+            return "mixed"
+        v = getattr(ls, "value", None)
+        return v if v is not None else str(ls)
+
+    def _create_long_lesson_script(self, topic: str, grade_level: str) -> str:
+        """Heuristic multi-minute scene when the LLM fails. Topic must be short for a Python string."""
+        t = (topic or "Topic").replace("\\", " ").replace("\"", "\'")[:160]
+        g = (grade_level or "4").replace("\"", "\'")[:6]
+        # Many labeled segments with self.wait() so the MP4 runs for several minutes.
+        return f'''from manim import *
+
+class ExplanationScene(Scene):
+    def construct(self):
+        tstr = {repr(t)}
+        gstr = {repr(g)}
+
+        title = Text("Lesson: " + tstr, font_size=42, color=BLUE, line_spacing=0.6)
+        sub = Text("Grade " + gstr + "  |  Long walkthrough, take your time", font_size=22, color=GRAY)
+        sub.next_to(title, DOWN)
+        self.play(Write(title), run_time=1.6)
+        self.play(Write(sub), run_time=1.2)
+        self.wait(8)
+
+        self.play(FadeOut(VGroup(title, sub)))
+
+        steps = [
+            "1. We start with the main idea, slowly.",
+            "2. A simple example to anchor the idea.",
+            "3. A second look from another angle.",
+            "4. Visual labels and a short number example.",
+            "5. A step-by-step read through the logic.",
+            "6. A second number example, still slow.",
+            "7. If this feels easy, the next one stretches a little.",
+            "8. A picture made from shapes (informal, not a strict diagram).",
+            "9. A check: does this still match the idea?",
+            "10. A place where people often get confused.",
+            "11. A way to re-check your own work.",
+            "12. A different wording of the same idea.",
+            "13. A small recap of what changed between steps.",
+            "14. One more look at a worked line.",
+            "15. A slower pause before the summary.",
+        ]
+
+        for j, st in enumerate(steps, start=1):
+            head = Text(st, font_size=30, color=YELLOW)
+            body = Text("Read, pause, rewind the video if you need to.", font_size=24, color=WHITE)
+            body.next_to(head, DOWN, buff=0.35)
+            g2 = VGroup(head, body).to_edge(UP, buff=0.45)
+            self.play(Write(g2), run_time=1.7)
+            if j in (2, 6, 8, 12, 15):
+                ex = Text("1 + 1 = 2   (we keep simple math as a stand-in for any worked line)", font_size=22, color=GREEN)
+                ex.next_to(g2, DOWN, buff=0.6)
+                self.play(Write(ex), run_time=1.2)
+                self.wait(9)
+                self.play(FadeOut(ex))
+            else:
+                self.wait(9)
+            if j in (3, 9, 14, 5):
+                extra = Text("Breathe, then continue.", font_size=22, color=ORANGE)
+                extra.next_to(g2, DOWN, buff=0.6)
+                self.play(FadeIn(extra), run_time=1.0)
+                self.wait(7)
+                self.play(FadeOut(VGroup(g2, extra)))
+            else:
+                self.play(FadeOut(g2), run_time=0.6)
+
+        tail = Text("This fallback clip is long on purpose. Ask the API to tune MANIM_TARGET_MINUTES.", font_size=20, color=TEAL)
+        self.play(Write(tail), run_time=1.2)
+        self.wait(5)
+        self.play(FadeOut(tail))
+        out = Text("You reached the end of the walkthrough.", font_size=32, color=BLUE)
+        self.play(Write(out), run_time=1.5)
+        self.wait(6)
+        self.play(FadeOut(out))
+'''
+    
     async def _generate_manim_script(
         self,
         topic: str,
         grade_level: str,
         student_profile: StudentProfile,
         language: str,
-        target_duration_minutes: float = 5.0,
         extra_context: Optional[str] = None,
         narration_excerpt: str = "none",
     ) -> str:
-        """Generate Manim script using Gemini API"""
+        """Generate Manim script with Gemini (via llm_service)."""
+        tmin = self._target_minutes
+        ex_raw = (extra_context or "").strip() or "none"
+        ex = ex_raw.replace("{", "{{").replace("}", "}}")[:4000]
+        ne = (narration_excerpt or "none").replace("{", "{{").replace("}", "}}")
+        if len(ne) > 12000:
+            ne = ne[:12000] + "…"
+
+        def _pat_dict(obj, key: str) -> dict:
+            d = getattr(obj, key, None)
+            return d if isinstance(d, dict) else {}
+
+        profile_summary = {
+            "learning_style": self._ls_style(student_profile),
+            "confusion_areas": list(_pat_dict(student_profile, "confusion_patterns").keys())[:3],
+            "success_areas": list(_pat_dict(student_profile, "success_patterns").keys())[:3],
+        }
+
+        # Calculate minimum wait time for production quality
+        wait_time_minimum = int(60 * tmin * 0.4)  # 40% of target time in wait calls
+        
+        prompt = self.manim_prompt_template.format(
+            topic=topic,
+            grade_level=grade_level,
+            language=language,
+            target_minutes=f"{tmin:.1f}",
+            wait_time_minimum=wait_time_minimum,
+            narration_excerpt=ne,
+            extra_context=ex,
+            student_profile_summary=json.dumps(profile_summary),
+        )
+        if not self.llm:
+            logger.warning("No LLM; using long local lesson script")
+            return self._create_long_lesson_script(topic, grade_level)
         try:
-            if not self.gemini_client:
-                return self._create_fallback_script(topic, grade_level)
-            
-            # Prepare student profile summary
-            profile_summary = {
-                "learning_style": student_profile.learning_style.value,
-                "confusion_areas": list(student_profile.confusion_patterns.keys())[:3],
-                "success_areas": list(student_profile.success_patterns.keys())[:3]
-            }
-            tmin = max(0.5, min(15.0, float(target_duration_minutes or 5.0)))
-            sc = self._section_count_for_duration(tmin)
-            ex = (extra_context or "").strip() or "none"
-            
-            # Format the prompt
-            ne = (narration_excerpt or "none").replace("{", "{{").replace("}", "}}")
-            prompt = self.manim_prompt_template.format(
-                topic=topic,
-                grade_level=grade_level,
-                language=language,
-                target_duration_minutes=round(tmin, 1),
-                section_count=sc,
-                narration_excerpt=ne,
-                extra_context=ex.replace("{", "{{").replace("}", "}}")[:4000],
-                student_profile_summary=json.dumps(profile_summary)
+            logger.debug("Generating Manim script for %s...", topic)
+            response_text = await self.llm.generate(
+                prompt=prompt,
+                temperature=0.5,
+                max_tokens=8192,
             )
-            
-            # Call Gemini API
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            
-            # Extract Python code from response
-            script = self._extract_python_code(response.text)
-            
-            logger.info("Manim script generated successfully")
+            if self._is_bad_manim_text(response_text):
+                logger.warning("LLM Manim output unusable; using long lesson fallback")
+                return self._create_long_lesson_script(topic, grade_level)
+            script = self._extract_python_code(response_text)
+            if self._is_bad_manim_text(script):
+                logger.warning("Extracted Manim script invalid; using long lesson fallback")
+                return self._create_long_lesson_script(topic, grade_level)
             return script
-            
         except Exception as e:
-            logger.error(f"Error generating Manim script: {str(e)}")
-            return self._create_fallback_script(topic, grade_level)
+            logger.error("Error generating Manim script: %s", e)
+            return self._create_long_lesson_script(topic, grade_level)
     
     def _extract_python_code(self, response_text: str) -> str:
         """Extract Python code from Gemini response"""
@@ -306,9 +409,10 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
     def _validate_manim_script(self, script: str) -> bool:
         """Validate Manim script for basic syntax"""
         try:
-            # Check for basic Manim requirements
+            if not self._manim_has_import(script):
+                logger.warning("Missing or invalid manim import")
+                return False
             required_elements = [
-                "from manim import",
                 "class ",
                 "Scene",
                 "def construct(self):"
@@ -332,10 +436,10 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
             return False
     
     async def _fix_manim_script(self, broken_script: str, topic: str) -> str:
-        """Attempt to fix broken Manim script using Gemini"""
+        """Attempt to fix broken Manim script using LLM"""
         try:
-            if not self.gemini_client:
-                return self._create_fallback_script(topic, "4")
+            if not self.llm:
+                return self._create_long_lesson_script(topic, "4")
             
             fix_prompt = f"""The following Manim script has syntax errors. Please fix it and return only the corrected Python code:
 
@@ -348,28 +452,26 @@ Requirements:
 2. Ensure all imports are correct
 3. Make sure the class extends Scene
 4. Verify the construct method is properly defined
-5. Return ONLY the corrected Python code
+5. Return ONLY valid Python code with no explanations"""
 
-Fixed script:"""
-            
-            response = self.gemini_client.models.generate_content(
-                model=self.model_name,
-                contents=fix_prompt
+            response_text = await self.llm.generate(
+                prompt=fix_prompt,
+                temperature=0.4,
+                max_tokens=8000,
             )
             
-            fixed_script = self._extract_python_code(response.text)
+            fixed_script = self._extract_python_code(response_text)
             
-            # Validate the fixed script
-            if self._validate_manim_script(fixed_script):
-                logger.info("Successfully fixed Manim script")
+            if self._validate_manim_script(fixed_script) and not self._is_bad_manim_text(fixed_script):
+                logger.info("Manim script fixed successfully")
                 return fixed_script
             else:
-                logger.warning("Fixed script still has issues, using fallback")
-                return self._create_fallback_script(topic, "4")
+                logger.warning("Fixed script still has issues; using long local lesson")
+                return self._create_long_lesson_script(topic, "4")
                 
         except Exception as e:
             logger.error(f"Error fixing Manim script: {str(e)}")
-            return self._create_fallback_script(topic, "4")
+            return self._create_long_lesson_script(topic, "4")
     
     def _create_fallback_script(self, topic: str, grade_level: str) -> str:
         """Create a simple fallback Manim script"""
@@ -417,9 +519,18 @@ class ExplanationScene(Scene):
     ) -> Dict[str, Any]:
         """Render video using Manim subprocess"""
         try:
-            tmin = max(0.5, min(15.0, float(target_duration_minutes or 5.0)))
-            # Scale render cap with requested length (up to 20 min wall clock for very long scene graphs)
-            render_timeout = int(min(1200, max(300, 180 + tmin * 90)))
+            tmin = max(2.0, float(target_duration_minutes or 4.0))
+            # Subprocess: no cap by default (user asked not to time-limit long Manim work).
+            # If you need a guardrail, set MANIM_SUBPROCESS_TIMEOUT_SEC to a positive value (seconds only).
+            raw = (os.getenv("MANIM_SUBPROCESS_TIMEOUT_SEC") or "").strip()
+            if raw == "" or raw in ("0", "none", "None"):
+                render_timeout = None
+            else:
+                try:
+                    v = int(float(raw))
+                    render_timeout = v if v > 0 else None
+                except ValueError:
+                    render_timeout = None
             # Create unique filenames
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             script_filename = f"scene_{timestamp}.py"
@@ -445,24 +556,29 @@ class ExplanationScene(Scene):
             # Record start time
             start_time = datetime.now()
             
-            # Run Manim subprocess
-            logger.info(f"Running Manim command: {' '.join(manim_cmd)} (timeout {render_timeout}s)")
+            if render_timeout is None:
+                logger.info("Running Manim (no subprocess timeout; set MANIM_SUBPROCESS_TIMEOUT_SEC to cap):")
+            else:
+                logger.info("Running Manim (subprocess timeout %ss):", render_timeout)
+            logger.info("Command: %s", " ".join(manim_cmd))
             
-            # Wait for completion with timeout
             try:
-                result = await asyncio.to_thread(
-                    subprocess.run,
-                    manim_cmd,
-                    cwd=self.temp_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=render_timeout
-                )
+                run_kw = {
+                    "cwd": str(self.temp_dir),
+                    "capture_output": True,
+                    "text": True,
+                }
+                if render_timeout is not None:
+                    run_kw["timeout"] = render_timeout
+                result = await asyncio.to_thread(subprocess.run, manim_cmd, **run_kw)
                 stdout = result.stdout
                 stderr = result.stderr
                 returncode = result.returncode
-            except subprocess.TimeoutExpired:
-                raise Exception("Manim rendering timed out; try a shorter target duration or simplify the topic")
+            except subprocess.TimeoutExpired as te:
+                raise Exception(
+                    f"Manim hit subprocess timeout after {getattr(te, 'timeout', None) or render_timeout}s. "
+                    "Increase MANIM_SUBPROCESS_TIMEOUT_SEC, or set it to 0 to disable, then simplify the scene if needed."
+                ) from te
             
             # Calculate generation time
             generation_time = (datetime.now() - start_time).total_seconds()
@@ -566,18 +682,19 @@ class ExplanationScene(Scene):
         return None
     
     def _create_fallback_video_response(self, topic: str, error: str) -> VideoResponse:
-        """Create fallback video response when generation fails"""
+        """No placeholder file: empty URL; client should show the error. Successful renders live under /videos/"""
+        safe = (error or "unknown")[:2000]
         return VideoResponse(
-            video_url="/static/placeholder_video.mp4",  # Could create a placeholder
+            video_url="",
             video_id=f"failed_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             topic=topic,
             duration_seconds=None,
             file_size_mb=None,
-            manim_script=f"# Video generation failed: {error}",
+            manim_script=f"# Video generation failed: {safe}",
             generation_time_seconds=0.0,
             has_audio=False,
             tts_engine=None,
-            narration_preview=None,
+            narration_preview=f"Generation did not complete: {safe}",
         )
     
     def is_healthy(self) -> bool:
@@ -588,7 +705,7 @@ class ExplanationScene(Scene):
                 [sys.executable, "-m", "manim", "--version"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=60,
             )
             return result.returncode == 0
         except Exception:

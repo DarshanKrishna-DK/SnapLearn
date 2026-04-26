@@ -83,12 +83,33 @@ from video_analytics import VideoAnalytics, InteractionType
 from utils import setup_logging, validate_environment
 
 # Student Profile & Quiz System
-from student_profile import profile_manager, QuizResult, LearningSession, VideoProgress, DifficultyLevel
+from student_profile import (
+    profile_manager,
+    profile_to_api_payload,
+    QuizResult,
+    LearningSession,
+    VideoProgress,
+    DifficultyLevel,
+)
 from quiz_system import quiz_generator, QuizResponse
+import quiz_cache
+from canned_quizzes import build_canned_quiz
 
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+def _display_value(v: Any) -> str:
+    """Pydantic/str Enum or raw string (e.g. student profile fields loaded from JSON on disk)."""
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if hasattr(v, "value") and not isinstance(v, (bytes, bytearray)):
+        return str(getattr(v, "value"))
+    return str(v)
+
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -113,6 +134,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Optional staging routes under /api/staging (not used by main Vite UI)
+# Tutor UI uses /api/lesson/structured: scripted lessons, board assets, no browser LLM
+from mock_endpoints import staging_router, tutor_dropin_router  # noqa: E402
+
+app.include_router(staging_router)
+app.include_router(tutor_dropin_router)
 
 # Static and generated media (paths relative to repo root, next to this package)
 _root_dir = _backend_dir.parent
@@ -174,17 +202,18 @@ async def health_check():
 
 # Core API endpoints
 @app.post("/api/explain", response_model=ExplanationResponse)
-@handle_api_errors(timeout_seconds=30.0)
+@handle_api_errors()
 async def explain_topic(request: QuestionRequest):
     """
     Main tutoring endpoint - takes a question and returns personalized explanation
     with animated blackboard script - now with enhanced grade-level adaptation
     """
     try:
-        logger.info(f"Explain request (Grade {request.grade_level}): {request.question[:50]}...")
-        
-        # Get enhanced student profile from new system
-        enhanced_profile = profile_manager.get_profile(request.student_id, request.grade_level)
+        g_str = _display_value(request.grade_level)
+        logger.info(f"Explain request (Grade {g_str}): {request.question[:50]}...")
+
+        # Get enhanced student profile from new system (grade must be a short string, e.g. 2, K, 4)
+        enhanced_profile = profile_manager.get_profile(request.student_id, g_str)
         
         # Get or create legacy student profile for backward compatibility
         student_profile = await memory_manager.get_student_profile(request.student_id)
@@ -213,15 +242,18 @@ async def explain_topic(request: QuestionRequest):
             else ""
         )
 
+        _ls = _display_value(enhanced_profile.learning_style)
+        _df = _display_value(enhanced_profile.difficulty_preference)
+
         enhanced_question = f"""
-        GRADE LEVEL: {request.grade_level}
+        GRADE LEVEL: {g_str}
         STUDENT CONTEXT: Grade {enhanced_profile.grade} student with {enhanced_profile.quiz_accuracy:.1%} quiz accuracy
-        LEARNING PROFILE: {enhanced_profile.learning_style.value} learner, difficulty preference: {enhanced_profile.difficulty_preference.value}
+        LEARNING PROFILE: {_ls} learner, difficulty preference: {_df}
         STRENGTHS: {', '.join(enhanced_profile.strengths) if enhanced_profile.strengths else 'Building foundational skills'}
         AREAS TO WORK ON: {', '.join(enhanced_profile.weaknesses) if enhanced_profile.weaknesses else 'Continue current progress'}
         
         GRADE-APPROPRIATE INSTRUCTION: {grade_context.get(
-            request.grade_level.value if hasattr(request.grade_level, "value") else str(request.grade_level),
+            g_str,
             grade_context["4"],
         )}
         {_lang_extra}
@@ -230,8 +262,8 @@ async def explain_topic(request: QuestionRequest):
         STUDENT QUESTION: {request.question}
         
         Please provide a comprehensive explanation that:
-        1. Is perfectly appropriate for Grade {request.grade_level}
-        2. Considers this student's learning style: {enhanced_profile.learning_style.value}
+        1. Is perfectly appropriate for Grade {g_str}
+        2. Considers this student's learning style: {_ls}
         3. Addresses their knowledge level based on {enhanced_profile.quiz_accuracy:.1%} accuracy
         4. Uses vocabulary and concepts suitable for their grade
         5. Provides 2-3 times more detail than a typical short response
@@ -242,8 +274,8 @@ async def explain_topic(request: QuestionRequest):
         explanation = await tutor_engine.generate_explanation(
             question=enhanced_question,
             student_profile=student_profile,
-            grade_level=request.grade_level,
-            language=request.language
+            grade_level=g_str,
+            language=_display_value(request.language)
         )
         
         # Update both legacy and new student profiles
@@ -251,7 +283,7 @@ async def explain_topic(request: QuestionRequest):
             student_id=request.student_id,
             question=request.question,
             explanation=explanation.explanation_text,
-            grade_level=request.grade_level
+            grade_level=g_str,
         )
         
         # Add learning session to new profile system
@@ -263,7 +295,7 @@ async def explain_topic(request: QuestionRequest):
             completion_rate=1.0,
             timestamp=datetime.now().isoformat()
         )
-        profile_manager.add_learning_session(request.student_id, session, request.grade_level)
+        profile_manager.add_learning_session(request.student_id, session, g_str)
         
         return explanation
         
@@ -272,7 +304,7 @@ async def explain_topic(request: QuestionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate-video", response_model=VideoResponse)
-@handle_api_errors(timeout_seconds=300.0)  # 5 minutes for video generation
+@handle_api_errors()  # Production-grade: no timeouts for comprehensive video generation
 async def generate_video(request: VideoRequest, background_tasks: BackgroundTasks):
     """
     Generate Manim video for a topic - runs locally as subprocess
@@ -286,20 +318,21 @@ async def generate_video(request: VideoRequest, background_tasks: BackgroundTask
         # Generate video (Manim + optional TTS; target length 0.5-15 min)
         video_result = await manim_generator.generate_video(
             topic=request.topic,
-            grade_level=request.grade_level,
+            grade_level=_display_value(request.grade_level),
             student_profile=student_profile,
-            language=request.language,
-            target_duration_minutes=float(request.target_duration_minutes or 5.0),
+            language=_display_value(request.language),
             enable_tts=bool(request.enable_tts),
             extra_context=request.extra_context,
         )
         
-        # Log video generation
-        await memory_manager.log_video_generation(
-            student_id=request.student_id,
-            topic=request.topic,
-            video_path=video_result.video_url
-        )
+        try:
+            await memory_manager.log_video_generation(
+                student_id=request.student_id,
+                topic=request.topic,
+                video_path=video_result.video_url or "",
+            )
+        except Exception as log_err:
+            logger.warning("log_video_generation skipped: %s", log_err)
         
         return video_result
         
@@ -339,19 +372,19 @@ async def assess_answer(request: AssessmentRequest):
         logger.error(f"Error in assess_answer: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/student/{student_id}/profile")
-async def get_student_profile(student_id: str):
-    """Get student profile and learning history"""
+@app.get("/api/student/{student_id}/memory-ledger")
+async def get_student_memory_ledger(student_id: str):
+    """Legacy in-memory session summary (separate from file-based learner profile)."""
     try:
         profile = await memory_manager.get_student_profile(student_id)
         return {
             "student_id": student_id,
             "profile": profile.dict() if profile else None,
             "recent_topics": await memory_manager.get_recent_topics(student_id),
-            "learning_stats": await memory_manager.get_learning_stats(student_id)
+            "learning_stats": await memory_manager.get_learning_stats(student_id),
         }
     except Exception as e:
-        logger.error(f"Error getting student profile: {str(e)}")
+        logger.error(f"Error getting memory ledger: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/student/{student_id}/videos")
@@ -461,7 +494,7 @@ async def process_text_input(request: MultiModalRequest):
 # Phase 3 Endpoints - Advanced AI Tutoring Features
 
 @app.post("/api/conversation/start", response_model=ConversationResponse)
-@handle_api_errors(timeout_seconds=25.0)
+@handle_api_errors()
 async def start_conversation(request: ConversationRequest):
     """
     Start a new multi-turn tutoring conversation with context awareness
@@ -929,7 +962,7 @@ Generate recommendations in JSON format:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/analytics/learning/{student_id}", response_model=LearningAnalytics)
-@handle_api_errors(timeout_seconds=15.0)
+@handle_api_errors()
 async def get_learning_analytics(student_id: str, period: str = "week"):
     """
     Get comprehensive learning analytics for a student - simplified and robust version
@@ -970,7 +1003,7 @@ async def get_learning_analytics(student_id: str, period: str = "week"):
 # Phase 4 Endpoints - Enhanced Video Generation & Analytics
 
 @app.post("/api/video/generate-contextual")
-@handle_api_errors(timeout_seconds=300.0)  # 5 minutes for contextual video generation
+@handle_api_errors()  # Production-grade: no timeouts for AI processing
 async def generate_contextual_video(request: ContextualVideoRequest):
     """
     Generate contextual video using Phase 4 enhanced generator with conversation context
@@ -1019,7 +1052,7 @@ async def generate_contextual_video(request: ContextualVideoRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/video/batch-generate") 
-@handle_api_errors(timeout_seconds=600.0)  # 10 minutes for batch video generation
+@handle_api_errors()  # Production-grade: no timeouts for batch processing
 async def create_batch_video_generation(request: LearningPathRequest):
     """
     Create batch video generation for learning paths
@@ -1216,7 +1249,7 @@ async def get_student_video_analytics(student_id: str, days: int = 30):
 # Advanced Video Features
 
 @app.post("/api/video/generate-with-style")
-@handle_api_errors(timeout_seconds=300.0)  # 5 minutes for styled video generation  
+@handle_api_errors()  # Production-grade: no timeouts for styled generation
 async def generate_video_with_style(
     topic: str,
     student_id: str,
@@ -1361,34 +1394,18 @@ async def get_video_recommendations(student_id: str, limit: int = 10):
 
 # Student Profile endpoints
 @app.get("/api/student/{student_id}/profile")
-@handle_api_errors(timeout_seconds=30.0)
+@handle_api_errors()
 async def get_student_profile(student_id: str, grade: str = "4"):
     """Get student profile with learning analytics and adaptation data"""
     try:
         profile = profile_manager.get_profile(student_id, grade)
-        return {
-            "student_id": profile.student_id,
-            "grade": profile.grade,
-            "learning_style": profile.learning_style.value,
-            "difficulty_preference": profile.difficulty_preference.value,
-            "quiz_accuracy": profile.quiz_accuracy,
-            "total_quizzes": profile.total_quizzes,
-            "total_learning_time_minutes": profile.total_learning_time_minutes,
-            "strengths": profile.strengths,
-            "weaknesses": profile.weaknesses,
-            "recent_quiz_history": profile.quiz_history[-5:] if profile.quiz_history else [],
-            "recent_sessions": profile.learning_sessions[-3:] if profile.learning_sessions else [],
-            "video_progress": profile.video_progress[-5:] if profile.video_progress else [],
-            "recommended_difficulty": profile.get_recommended_content_level().value,
-            "created_at": profile.created_at,
-            "last_updated": profile.last_updated
-        }
+        return profile_to_api_payload(profile)
     except Exception as e:
         logger.error(f"Error getting student profile: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/student/{student_id}/learning-session")
-@handle_api_errors(timeout_seconds=30.0)
+@handle_api_errors()
 async def add_learning_session(student_id: str, session_data: dict, grade: str = "4"):
     """Add a learning session to student profile"""
     try:
@@ -1414,7 +1431,7 @@ async def add_learning_session(student_id: str, session_data: dict, grade: str =
 
 # Quiz System endpoints
 @app.post("/api/quiz/generate")
-@handle_api_errors(timeout_seconds=60.0)
+@handle_api_errors()
 async def generate_quiz(request: dict):
     """Generate an adaptive quiz based on student profile and preferences"""
     try:
@@ -1423,18 +1440,23 @@ async def generate_quiz(request: dict):
         topic = request.get("topic", "math")
         difficulty = DifficultyLevel(request.get("difficulty", "adaptive"))
         num_questions = min(request.get("num_questions", 5), 10)  # Max 10 questions
-        
+
         # Get student profile for personalization
         profile = profile_manager.get_profile(student_id, grade_level)
-        
-        # Generate quiz with student weaknesses prioritized
-        quiz = quiz_generator.generate_quiz(
-            grade_level=grade_level,
-            topic=topic,
-            difficulty=difficulty if difficulty != DifficultyLevel.ADAPTIVE else profile.get_recommended_content_level(),
-            num_questions=num_questions,
-            student_weaknesses=profile.weaknesses
-        )
+
+        canned = build_canned_quiz(topic, num_questions, grade_level)
+        if canned is not None:
+            quiz = canned
+        else:
+            eff = difficulty if difficulty != DifficultyLevel.ADAPTIVE else profile.get_recommended_content_level()
+            quiz = await quiz_generator.generate_quiz_async(
+                grade_level=grade_level,
+                topic=topic,
+                num_questions=num_questions,
+                effective_difficulty=eff,
+                student_weaknesses=profile.weaknesses,
+            )
+        quiz_cache.put(quiz)
         
         return {
             "quiz_id": quiz.id,
@@ -1465,7 +1487,7 @@ async def generate_quiz(request: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/quiz/submit")
-@handle_api_errors(timeout_seconds=60.0)
+@handle_api_errors()
 async def submit_quiz(request: dict):
     """Submit quiz responses and update student profile with results"""
     try:
@@ -1477,16 +1499,27 @@ async def submit_quiz(request: dict):
         if not quiz_id or not responses:
             raise HTTPException(status_code=400, detail="Missing quiz_id or responses")
         
-        # Regenerate quiz to get questions for grading (in a real system, store quizzes)
         topic = request.get("topic", "math")
         difficulty = DifficultyLevel(request.get("difficulty", "medium"))
         
-        quiz = quiz_generator.generate_quiz(
-            grade_level=grade_level,
-            topic=topic,
-            difficulty=difficulty,
-            num_questions=len(responses)
-        )
+        stored = quiz_cache.get(quiz_id)
+        used_stored = bool(stored and stored.id == quiz_id)
+        if used_stored:
+            quiz = stored
+        else:
+            # Fallback: reconstruct (may not match the exact items the user saw)
+            logger.warning("Quiz %s not in server cache; regenerating for grading (topic=%s)", quiz_id, topic)
+            canned = build_canned_quiz(topic, len(responses), grade_level)
+            if canned is not None:
+                quiz = canned
+            else:
+                quiz = await quiz_generator.generate_quiz_async(
+                    grade_level=grade_level,
+                    topic=topic,
+                    num_questions=len(responses),
+                    effective_difficulty=difficulty,
+                    student_weaknesses=None,
+                )
         
         # Convert responses to QuizResponse objects
         quiz_responses = []
@@ -1501,18 +1534,28 @@ async def submit_quiz(request: dict):
         # Grade the quiz
         results = quiz_generator.grade_quiz(quiz, quiz_responses)
         
-        # Update student profile
+        # Update student profile (use graded quiz topic so the JSON file matches the quiz content)
         quiz_result = QuizResult(
-            topic=topic,
+            topic=quiz.topic,
             questions_count=results["total_questions"],
             correct_answers=results["correct_answers"],
             time_taken_seconds=results["total_time_seconds"],
-            difficulty=difficulty,
+            difficulty=quiz.difficulty,
             timestamp=datetime.now().isoformat(),
             mistakes=results["mistakes"]
         )
         
         profile = profile_manager.update_quiz_result(student_id, quiz_result, grade_level)
+
+        if used_stored:
+            quiz_cache.pop(quiz_id)
+
+        try:
+            from presentation_bridge import try_unlock_after_quiz
+
+            try_unlock_after_quiz(student_id, quiz.topic, results)
+        except Exception as pres_err:
+            logger.debug("Presentation state update skipped: %s", pres_err)
         
         return {
             "quiz_results": results,
@@ -1521,13 +1564,14 @@ async def submit_quiz(request: dict):
                 "total_quizzes": profile.total_quizzes,
                 "strengths": profile.strengths,
                 "weaknesses": profile.weaknesses,
-                "recommended_difficulty": profile.get_recommended_content_level().value
+                "recommended_difficulty": profile.get_recommended_content_level().value,
             },
             "adaptive_feedback": {
                 "difficulty_adjustment": f"Based on {results['score_percentage']:.1f}% score, {'increasing' if results['score_percentage'] > 80 else 'maintaining' if results['score_percentage'] > 60 else 'decreasing'} difficulty level",
                 "focus_areas": results["areas_for_improvement"],
-                "next_topics": profile.weaknesses[:3] if profile.weaknesses else ["Continue current topic"]
-            }
+                "next_topics": profile.weaknesses[:3] if profile.weaknesses else ["Continue current topic"],
+            },
+            "learner_profile": profile_to_api_payload(profile),
         }
         
     except Exception as e:
@@ -1535,7 +1579,7 @@ async def submit_quiz(request: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/video/{video_id}/progress")
-@handle_api_errors(timeout_seconds=30.0)
+@handle_api_errors()
 async def update_video_progress(video_id: str, request: dict):
     """Update student's video watching progress"""
     try:
@@ -1588,6 +1632,12 @@ async def debug_memory():
 async def reset_student(student_id: str):
     """Reset student profile for testing"""
     await memory_manager.reset_student_profile(student_id)
+    try:
+        from presentation_bridge import reset_student_presentation_state
+
+        reset_student_presentation_state(student_id)
+    except Exception:
+        pass
     return {"message": f"Student {student_id} profile reset"}
 
 if __name__ == "__main__":

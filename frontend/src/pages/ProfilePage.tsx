@@ -1,290 +1,194 @@
-import React, { useState, useEffect } from 'react';
-import { toast } from 'react-hot-toast';
-import { User, BookOpen, Trophy, Clock, TrendingUp, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { apiClient, handleAPIError, type LearningProfilePayload } from '@/lib/api';
+import { useAppState } from '@/context/AppStateContext';
+import { PixelButton } from '@/components/PixelButton';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { apiClient, handleAPIError } from '@/utils/api';
-import { StudentProfile, LearningStats } from '@/types';
+export function ProfilePage() {
+  const { studentId, setStudentId, gradeLevel, setGradeLevel, language, setLanguage, profileRevision } = useAppState();
+  const [idInput, setIdInput] = useState(studentId);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<LearningProfilePayload | null>(null);
 
-interface ProfilePageProps {
-  studentId: string;
-  onStudentIdChange: (newId: string) => void;
-}
-
-const ProfilePage: React.FC<ProfilePageProps> = ({
-  studentId,
-  onStudentIdChange
-}) => {
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
-  const [recentTopics, setRecentTopics] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [newStudentId, setNewStudentId] = useState(studentId);
-
-  // Load profile data
-  const loadProfileData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await apiClient.getStudentProfile(studentId);
-      setProfile(response.profile);
-      setLearningStats(response.learning_stats);
-      setRecentTopics(response.recent_topics);
-    } catch (error) {
-      console.error('Error loading profile:', error);
-      toast.error(handleAPIError(error));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const load = useCallback(() => {
+    setLoading(true);
+    apiClient
+      .getStudentProfile(studentId, gradeLevel)
+      .then(setData)
+      .catch((e) => toast.error(handleAPIError(e)))
+      .finally(() => setLoading(false));
+  }, [studentId, gradeLevel]);
 
   useEffect(() => {
-    loadProfileData();
+    setIdInput(studentId);
   }, [studentId]);
 
-  // Reset student profile
-  const handleReset = async () => {
-    if (!confirm('Are you sure you want to reset all learning data for this student?')) {
-      return;
-    }
+  useEffect(() => {
+    void load();
+  }, [load, profileRevision]);
 
-    try {
-      await apiClient.resetStudent(studentId);
-      toast.success('Student profile reset successfully');
-      loadProfileData();
-    } catch (error) {
-      console.error('Error resetting profile:', error);
-      toast.error(handleAPIError(error));
-    }
-  };
-
-  // Change student ID
-  const handleStudentIdChange = () => {
-    if (newStudentId.trim() && newStudentId !== studentId) {
-      onStudentIdChange(newStudentId.trim());
-      toast.success(`Switched to student: ${newStudentId}`);
-    }
-  };
-
-  if (isLoading) {
+  if (loading && !data) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="card text-center py-16">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading student profile...</p>
-        </div>
+      <div className="py-20 flex flex-col items-center">
+        <LoadingSpinner />
+        <p className="mt-2 font-mono text-xs">Loading</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Student Learning Profile
-        </h1>
-        <p className="text-gray-600">
-          Track learning progress and personalize the AI tutoring experience
-        </p>
-      </div>
-
-      {/* Student ID Management */}
-      <div className="card">
-        <div className="flex items-center space-x-2 mb-4">
-          <User className="w-5 h-5 text-primary-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Student Information</h2>
+    <div className="mx-auto max-w-2xl px-4 py-10">
+      <h1 className="font-pixel text-xs">PROFILE</h1>
+      <p className="text-sm text-cream-200/80 font-body">
+        Learner model the tutor and quiz use: style, accuracy, strengths, and focus areas. Use{' '}
+        <code className="text-cream-100/80">presentation-demo</code> for the preloaded high-school example.
+      </p>
+      <p className="mt-3 text-xs text-cream-200/60 font-body leading-relaxed">
+        View this profile as JSON from the API:{' '}
+        <a
+          className="text-gold-400/90 underline decoration-gold-400/30 underline-offset-2"
+          href={`http://127.0.0.1:8000/api/student/${encodeURIComponent(studentId)}/profile`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          open <code className="text-[0.8em] text-cream-200/90">/api/student/…/profile</code>
+        </a>
+        . The same data is persisted under{' '}
+        <code className="text-[0.8em] text-cream-200/80">backend/student_profiles/{studentId}.json</code> when the
+        server has written a file for that id.
+      </p>
+      <div className="mt-6 sl-plate p-5 rounded-2xl space-y-4">
+        <div>
+          <label className="font-pixel text-[0.45rem]">STUDENT ID</label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <input
+              className="flex-1 min-w-[8rem] rounded border border-cream-200/15 bg-maroon-900/50 px-3 py-2 text-cream-100"
+              value={idInput}
+              onChange={(e) => setIdInput(e.target.value)}
+            />
+            <PixelButton
+              type="button"
+              onClick={() => {
+                if (idInput.trim()) {
+                  setStudentId(idInput.trim());
+                  toast.success('Saved');
+                }
+              }}
+              variant="solid"
+            >
+              APPLY
+            </PixelButton>
+          </div>
         </div>
-
-        <div className="space-y-4">
+        <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Student ID
-            </label>
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={newStudentId}
-                onChange={(e) => setNewStudentId(e.target.value)}
-                className="input-primary flex-1"
-                placeholder="Enter student ID"
-              />
-              <button
-                onClick={handleStudentIdChange}
-                disabled={!newStudentId.trim() || newStudentId === studentId}
-                className="btn-primary px-6"
-              >
-                Switch
-              </button>
-            </div>
+            <label className="font-pixel text-[0.45rem]">LEVEL</label>
+            <select
+              className="mt-1 w-full rounded border border-cream-200/15 bg-maroon-900/50 px-2 py-2 text-sm"
+              value={gradeLevel}
+              onChange={(e) => setGradeLevel(e.target.value as typeof gradeLevel)}
+            >
+              {(['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] as const).map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
           </div>
-
-          {profile && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Grade Level</label>
-                <p className="text-lg text-gray-900">
-                  {profile.grade_level === 'K' ? 'Kindergarten' : `Grade ${profile.grade_level}`}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Language</label>
-                <p className="text-lg text-gray-900">{profile.preferred_language}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Learning Style</label>
-                <p className="text-lg text-gray-900 capitalize">
-                  {profile.learning_style.replace('_', ' ')}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Learning Statistics */}
-      {learningStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="card text-center">
-            <div className="w-12 h-12 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <BookOpen className="w-6 h-6" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">
-              {learningStats.total_questions}
-            </div>
-            <div className="text-sm text-gray-600">Questions Asked</div>
-          </div>
-
-          <div className="card text-center">
-            <div className="w-12 h-12 bg-secondary-100 text-secondary-600 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <Trophy className="w-6 h-6" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">
-              {Math.round(learningStats.success_rate * 100)}%
-            </div>
-            <div className="text-sm text-gray-600">Success Rate</div>
-          </div>
-
-          <div className="card text-center">
-            <div className="w-12 h-12 bg-accent-100 text-accent-600 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">
-              {learningStats.total_sessions}
-            </div>
-            <div className="text-sm text-gray-600">Learning Sessions</div>
-          </div>
-
-          <div className="card text-center">
-            <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">
-              {learningStats.recent_activity}
-            </div>
-            <div className="text-sm text-gray-600">Recent Activity</div>
-          </div>
-        </div>
-      )}
-
-      {/* Recent Topics */}
-      {recentTopics.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Recent Topics Explored
-          </h3>
-          <div className="space-y-2">
-            {recentTopics.map((topic, index) => (
-              <div
-                key={index}
-                className="bg-gray-50 px-4 py-2 rounded-lg text-gray-700"
-              >
-                {topic}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Learning Patterns */}
-      {profile && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Success Patterns */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Strengths
-            </h3>
-            {Object.keys(profile.success_patterns).length > 0 ? (
-              <div className="space-y-2">
-                {Object.entries(profile.success_patterns)
-                  .sort(([, a], [, b]) => b - a)
-                  .slice(0, 5)
-                  .map(([pattern, count]) => (
-                    <div key={pattern} className="flex justify-between items-center">
-                      <span className="text-gray-700 capitalize">
-                        {pattern.replace(/[_-]/g, ' ')}
-                      </span>
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
-                        {count} successes
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">
-                No learning patterns yet. Keep exploring!
-              </p>
-            )}
-          </div>
-
-          {/* Confusion Patterns */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Areas to Focus On
-            </h3>
-            {Object.keys(profile.confusion_patterns).length > 0 ? (
-              <div className="space-y-2">
-                {Object.entries(profile.confusion_patterns)
-                  .sort(([, a], [, b]) => b - a)
-                  .slice(0, 5)
-                  .map(([pattern, count]) => (
-                    <div key={pattern} className="flex justify-between items-center">
-                      <span className="text-gray-700 capitalize">
-                        {pattern.replace(/[_-]/g, ' ')}
-                      </span>
-                      <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm">
-                        {count} questions
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">
-                No confusion patterns identified yet.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Profile Actions */}
-      <div className="card">
-        <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Profile Management</h3>
-            <p className="text-gray-600">Reset learning data to start fresh</p>
+            <label className="font-pixel text-[0.45rem]">LANGUAGE</label>
+            <select
+              className="mt-1 w-full rounded border border-cream-200/15 bg-maroon-900/50 px-2 py-2 text-sm"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as typeof language)}
+            >
+              {(['en', 'kn', 'hi', 'es', 'fr', 'de', 'zh', 'ja'] as const).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
-          
-          <button
-            onClick={handleReset}
-            className="btn-outline text-red-600 border-red-600 hover:bg-red-50 flex items-center space-x-2"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Profile</span>
-          </button>
         </div>
+        <PixelButton
+          type="button"
+          variant="ghost"
+          onClick={async () => {
+            if (!window.confirm('Reset learning data and session flags for this student?')) return;
+            try {
+              await apiClient.resetStudent(studentId);
+              toast.success('Reset complete');
+              load();
+            } catch (e) {
+              toast.error(handleAPIError(e));
+            }
+          }}
+        >
+          RESET DATA
+        </PixelButton>
       </div>
+      {data && (
+        <div className="mt-8 space-y-4">
+          <div className="sl-plate p-5 rounded-2xl border border-cream-200/10">
+            <h2 className="font-pixel text-[0.55rem] text-cream-100">LEARNER SNAPSHOT</h2>
+            <dl className="mt-3 grid gap-2 text-sm font-body text-cream-200/90">
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-cream-200/60">Level (profile)</dt>
+                <dd className="font-mono text-cream-100">{data.grade}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-cream-200/60">Learning style</dt>
+                <dd className="font-mono text-cream-100">{data.learning_style}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-cream-200/60">Quiz accuracy (rolling)</dt>
+                <dd className="font-mono text-gold-400">{(data.quiz_accuracy * 100).toFixed(0)}%</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-cream-200/60">Quizzes completed</dt>
+                <dd className="font-mono text-cream-100">{data.total_quizzes}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-cream-200/60">Time on platform (min)</dt>
+                <dd className="font-mono text-cream-100">{data.total_learning_time_minutes}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-2">
+                <dt className="text-cream-200/60">Next difficulty band</dt>
+                <dd className="font-mono text-cream-100">{data.recommended_difficulty}</dd>
+              </div>
+            </dl>
+          </div>
+          {data.strengths?.length ? (
+            <div className="sl-plate p-5 rounded-2xl border border-cream-200/10">
+              <h2 className="font-pixel text-[0.5rem] text-cream-100/90">STRENGTHS</h2>
+              <ul className="mt-2 list-inside list-disc text-sm text-cream-200/90 font-body">
+                {data.strengths.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {data.weaknesses?.length ? (
+            <div className="sl-plate p-5 rounded-2xl border border-gold-400/15">
+              <h2 className="font-pixel text-[0.5rem] text-gold-400/90">FOCUS AREAS</h2>
+              <ul className="mt-2 list-inside list-disc text-sm text-cream-200/90 font-body">
+                {data.weaknesses.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {data.recent_quiz_history?.length ? (
+            <div className="sl-plate p-4 rounded-2xl font-mono text-[0.65rem] text-cream-200/70 max-h-48 overflow-auto">
+              <p className="text-[0.5rem] font-pixel text-cream-200/50 mb-1">RECENT ASSESSMENTS</p>
+              <pre className="whitespace-pre-wrap break-all text-[0.6rem] leading-relaxed">
+                {JSON.stringify(data.recent_quiz_history, null, 2)}
+              </pre>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
-};
-
-export default ProfilePage;
+}

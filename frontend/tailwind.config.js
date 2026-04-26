@@ -1,188 +1,74 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      colors: {
-        // Existing colors
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
-        secondary: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-          800: '#166534',
-          900: '#14532d',
-        },
-        accent: {
-          50: '#fdf2f8',
-          100: '#fce7f3',
-          200: '#fbcfe8',
-          300: '#f9a8d4',
-          400: '#f472b6',
-          500: '#ec4899',
-          600: '#db2777',
-          700: '#be185d',
-          800: '#9d174d',
-          900: '#831843',
-        },
-        gray: {
-          50: '#f9fafb',
-          100: '#f3f4f6',
-          200: '#e5e7eb',
-          300: '#d1d5db',
-          400: '#9ca3af',
-          500: '#6b7280',
-          600: '#4b5563',
-          700: '#374151',
-          800: '#1f2937',
-          900: '#111827',
-        },
-        // SnapLearn AI Brand Colors
-        "error": "#ba1a1a",
-        "secondary-fixed-dim": "#eec058",
-        "tertiary": "#17030c",
-        "error-container": "#ffdad6",
-        "surface-container-lowest": "#ffffff",
-        "surface-container": "#f4ede3",
-        "on-primary-container": "#d16871",
-        "background": "#fff8f0",
-        "on-secondary": "#ffffff",
-        "on-surface": "#1e1b16",
-        "on-tertiary-fixed-variant": "#5e3d4b",
-        "tertiary-fixed-dim": "#e7bbcb",
-        "surface-container-low": "#faf3e9",
-        "secondary-container": "#fece65",
-        "on-tertiary-fixed": "#2d131f",
-        "on-primary-fixed": "#40000d",
-        "surface-container-highest": "#e8e2d8",
-        "surface-container-high": "#eee7dd",
-        "outline": "#887272",
-        "secondary-fixed": "#ffdf9f",
-        "on-tertiary-container": "#a47d8c",
-        "surface-variant": "#e8e2d8",
-        "on-error-container": "#93000a",
-        "tertiary-container": "#331824",
-        "inverse-on-surface": "#f7f0e6",
-        "primary-fixed": "#ffdada",
-        "surface-tint": "#9d3f49",
-        "primary-container": "#4a0010",
-        "on-tertiary": "#ffffff",
-        "surface-dim": "#e0d9d0",
-        "surface": "#fff8f0",
-        "on-secondary-fixed-variant": "#5b4300",
-        "outline-variant": "#dbc0c1",
-        "on-secondary-fixed": "#261a00",
-        "on-primary": "#ffffff",
-        // M3 ink (do not use key "primary" here; it overwrites the primary-* scale used by the app UI)
-        "sn-ink": "#1e0003",
-        "tertiary-fixed": "#ffd8e6",
-        "surface-bright": "#fff8f0",
-        "on-primary-fixed-variant": "#7e2833",
-        "on-secondary-container": "#755700",
-        "primary-fixed-dim": "#ffb2b6",
-        "on-surface-variant": "#554243",
-        "inverse-surface": "#33302a",
-        "on-error": "#ffffff",
-        "inverse-primary": "#ffb2b6",
-        "on-background": "#1e1b16"
-      },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['Fira Code', 'Monaco', 'Cascadia Code', 'Segoe UI Mono', 'Roboto Mono', 'monospace'],
-        "headline": ["Space Grotesk", "sans-serif"],
-        "display": ["Space Grotesk", "sans-serif"],
-        "body": ["Inter", "sans-serif"],
-        "label": ["Inter", "sans-serif"],
+        pixel: ['"Press Start 2P"', 'cursive'],
+        body: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
-      letterSpacing: {
-        "tightest": "-0.075em",
-        "widest": "0.2em"
+      colors: {
+        maroon: {
+          50: '#fdf2f4',
+          100: '#fce7ea',
+          200: '#f9d0d9',
+          300: '#e8a0b0',
+          400: '#c75a72',
+          500: '#7a2040',
+          600: '#5c1830',
+          700: '#3d0f1d',
+          800: '#2a0a14',
+          900: '#1a050c',
+          950: '#120307',
+        },
+        cream: {
+          50: '#fffef9',
+          100: '#faf6ee',
+          200: '#f0e8d8',
+          300: '#e4d4bc',
+          400: '#d4c4a4',
+          500: '#c4b08c',
+        },
+        gold: { 400: '#c9a24a', 500: '#b8862f' },
       },
-      animation: {
-        'fade-in': 'fadeIn 0.5s ease-in-out',
-        'slide-up': 'slideUp 0.5s ease-out',
-        'slide-down': 'slideDown 0.5s ease-out',
-        'bounce-subtle': 'bounceSubtle 2s infinite',
-        'pulse-gentle': 'pulseGentle 2s infinite',
-        'writing': 'writing 2s ease-in-out infinite',
-        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "bounce-slow": "bounce 3s infinite"
+      minHeight: {
+        screen: '100dvh',
+      },
+      boxShadow: {
+        professional: '0 4px 20px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1)',
+        'maroon-glow': '0 0 20px rgba(139, 21, 56, 0.3), 0 0 40px rgba(139, 21, 56, 0.1)',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+        float: {
+          '0%, 100%': { transform: 'translateY(0) rotateX(0deg)' },
+          '50%': { transform: 'translateY(-6px) rotateX(2deg)' },
         },
-        slideUp: {
-          '0%': { transform: 'translateY(20px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
+        pulseGlow: {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(201, 162, 74, 0.2)' },
+          '50%': { boxShadow: '0 0 24px 2px rgba(201, 162, 74, 0.35)' },
         },
-        slideDown: {
-          '0%': { transform: 'translateY(-20px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
+        meshPulse: {
+          '0%, 100%': { opacity: '0.02' },
+          '50%': { opacity: '0.05' },
         },
-        bounceSubtle: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-4px)' },
-        },
-        pulseGentle: {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.7' },
-        },
-        writing: {
-          '0%': { 'stroke-dashoffset': '100%' },
-          '100%': { 'stroke-dashoffset': '0%' },
+        professionalFadeIn: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
-      spacing: {
-        '18': '4.5rem',
-        '88': '22rem',
-        '112': '28rem',
-        '128': '32rem',
+      animation: {
+        float: 'float 5s ease-in-out infinite',
+        'pulse-glow': 'pulseGlow 3.5s ease-in-out infinite',
+        'mesh-pulse': 'meshPulse 3s ease-in-out infinite',
+        'professional-fade-in': 'professionalFadeIn 0.6s ease-out',
       },
-      maxWidth: {
-        '8xl': '88rem',
-        '9xl': '96rem',
-      },
-      typography: {
-        DEFAULT: {
-          css: {
-            color: '#374151',
-            maxWidth: 'none',
-            'h1, h2, h3, h4': {
-              color: '#111827',
-            },
-            'code::before': {
-              content: '""',
-            },
-            'code::after': {
-              content: '""',
-            },
-          },
-        },
+      backgroundImage: {
+        'mesh-gradient': 'linear-gradient(135deg, rgba(139, 21, 56, 0.1), rgba(245, 241, 232, 0.05))',
+        'professional-gradient':
+          'linear-gradient(110deg, rgba(139, 21, 56, 0.02) 0%, rgba(245, 241, 232, 0.01) 40%, rgba(0,0,0,0.1) 100%)',
       },
     },
   },
-  plugins: [
-    require('@tailwindcss/typography'),
-  ],
-}
+  plugins: [],
+};

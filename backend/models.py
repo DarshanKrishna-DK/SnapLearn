@@ -117,11 +117,19 @@ class AssessmentRequest(BaseModel):
     expected_answer: Optional[str] = Field(None, description="Expected correct answer")
 
 # Animation and Board Script Models
+class MermaidDiagram(BaseModel):
+    """Mermaid diagram for visual representation"""
+    title: str = Field(..., description="Diagram title")
+    description: str = Field(..., description="What this diagram shows")
+    mermaid_code: str = Field(..., description="Mermaid diagram code")
+    diagram_type: str = Field(..., description="Type: flowchart, sequence, mindmap, timeline, class, state")
+
 class BoardStep(BaseModel):
     """Single step in the animated blackboard"""
     step: int = Field(..., description="Step number in sequence")
     content: str = Field(..., description="Content to display")
-    type: str = Field(..., description="Type: title, body, equation, highlight, diagram")
+    type: str = Field(..., description="Type: title, body, equation, highlight, diagram, mermaid")
+    mermaid_code: Optional[str] = Field(None, description="Mermaid diagram code for this step")
     draw_duration_ms: int = Field(default=1000, description="Animation duration in milliseconds")
     position: Optional[Dict[str, float]] = Field(None, description="Position coordinates")
     style: Optional[Dict[str, Any]] = Field(None, description="Styling options")
@@ -137,6 +145,7 @@ class BoardScript(BaseModel):
 class ExplanationResponse(BaseModel):
     """Response model for explanation endpoint"""
     explanation_text: str = Field(..., description="Main explanation text")
+    mermaid_diagrams: List[MermaidDiagram] = Field(default_factory=list, description="Visual Mermaid diagrams")
     board_script: BoardScript = Field(..., description="Animated blackboard script")
     difficulty_level: str = Field(..., description="Detected difficulty level")
     key_concepts: List[str] = Field(..., description="Key concepts covered")

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapLearn SDK - Developer Integration Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Professional Color Palette - Maroon & Cream */
+            --primary-maroon: #8B1538;
+            --primary-maroon-light: #A53E4C;
+            --primary-maroon-dark: #6B1028;
+            --accent-cream: #F5F1E8;
+            --accent-cream-dark: #E8E2D5;
+            --neutral-900: #1a1a1a;
+            --neutral-800: #2d2d2d;
+            --neutral-700: #404040;
+            --neutral-600: #525252;
+            --neutral-500: #737373;
+            --neutral-400: #a3a3a3;
+            --neutral-300: #d4d4d4;
+            --neutral-200: #e5e5e5;
+            --neutral-100: #f5f5f5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            
+            /* Typography */
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--neutral-900);
+            color: var(--accent-cream);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Mesh Grid Background */
+        .mesh-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            background-image: 
+                linear-gradient(90deg, var(--primary-maroon) 1px, transparent 1px),
+                linear-gradient(0deg, var(--primary-maroon) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(139, 21, 56, 0.1);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(139, 21, 56, 0.2);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-maroon-light);
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            color: var(--accent-cream);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary-maroon-light);
+        }
+
+        /* Status Indicator */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: linear-gradient(135deg, rgba(139, 21, 56, 0.1), rgba(245, 241, 232, 0.05));
+            border-radius: 20px;
+            margin-bottom: 4rem;
+            border: 1px solid rgba(139, 21, 56, 0.1);
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary-maroon-light), var(--accent-cream));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--neutral-300);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .feature-card {
+            background: rgba(245, 241, 232, 0.02);
+            border: 1px solid rgba(139, 21, 56, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .feature-card:hover {
+            border-color: rgba(139, 21, 56, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(139, 21, 56, 0.1);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary-maroon), var(--primary-maroon-light));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent-cream);
+            margin-bottom: 1rem;
+        }
+
+        .feature-card p {
+            color: var(--neutral-300);
+            line-height: 1.6;
+        }
+
+        /* Code Block */
+        .code-block {
+            background: var(--neutral-800);
+            border: 1px solid rgba(139, 21, 56, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            position: relative;
+        }
+
+        .code-block::before {
+            content: attr(data-lang);
+            position: absolute;
+            top: 0.5rem;
+            right: 1rem;
+            color: var(--primary-maroon-light);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .code-block code {
+            color: var(--accent-cream);
+        }
+
+        .keyword { color: var(--primary-maroon-light); }
+        .string { color: #98D982; }
+        .number { color: #F5C6E0; }
+        .comment { color: var(--neutral-500); }
+
+        /* API Section */
+        .api-section {
+            background: rgba(245, 241, 232, 0.02);
+            border: 1px solid rgba(139, 21, 56, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .api-section h2 {
+            color: var(--primary-maroon-light);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        /* Endpoint */
+        .endpoint {
+            background: var(--neutral-800);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-left: 4px solid var(--primary-maroon);
+        }
+
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .method {
+            background: var(--primary-maroon);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .path {
+            font-family: var(--font-mono);
+            color: var(--accent-cream);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: rgba(139, 21, 56, 0.1);
+            border: 1px solid rgba(139, 21, 56, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-maroon-light);
+        }
+
+        .stat-label {
+            color: var(--neutral-300);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Interactive Demo */
+        .demo-panel {
+            background: rgba(245, 241, 232, 0.02);
+            border: 1px solid rgba(139, 21, 56, 0.1);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+
+        .demo-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: var(--primary-maroon);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-family);
+        }
+
+        .btn:hover {
+            background: var(--primary-maroon-light);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--primary-maroon);
+            color: var(--primary-maroon-light);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(139, 21, 56, 0.1);
+        }
+
+        /* Response Panel */
+        .response-panel {
+            background: var(--neutral-800);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 200px;
+            border: 1px solid rgba(139, 21, 56, 0.2);
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(139, 21, 56, 0.1);
+        }
+
+        .response-status {
+            background: var(--success);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100px;
+            gap: 0.5rem;
+        }
+
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--primary-maroon-light);
+            border-radius: 50%;
+            animation: loading 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes loading {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero p {
+                font-size: 1.1rem;
+            }
+            
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .demo-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="mesh-background"></div>
+    
+    <header class="header">
+        <div class="header-content">
+            <a href="#" class="logo">SnapLearn SDK</a>
+            <nav class="nav-links">
+                <a href="#getting-started">Getting Started</a>
+                <a href="#api-docs">API Docs</a>
+                <a href="#examples">Examples</a>
+                <a href="#support">Support</a>
+            </nav>
+            <div class="status">
+                <div class="status-dot"></div>
+                <span>API Online</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <h1>Developer Integration Hub</h1>
+            <p>Build adaptive AI tutoring into your applications with our comprehensive SDK. Real-time personalization, professional video generation, and enterprise-grade analytics.</p>
+        </section>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">99.9%</div>
+                <div class="stat-label">API Uptime</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">&lt;100ms</div>
+                <div class="stat-label">Response Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">15+</div>
+                <div class="stat-label">Integrations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">10M+</div>
+                <div class="stat-label">API Calls/Month</div>
+            </div>
+        </div>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <h3>Quick Integration</h3>
+                <p>Get started in minutes with our comprehensive SDKs for React, Vue, Angular, Python, Node.js, and mobile platforms. Production-ready with just a few lines of code.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>AI-Powered Adaptation</h3>
+                <p>Real-time learning style detection and content adaptation. Our AI analyzes student interactions to optimize teaching approaches dynamically.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎥</div>
+                <h3>Video Generation</h3>
+                <p>Professional educational videos generated on-demand using Manim. 7+ minute comprehensive explanations with interactive visualizations and captions.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Analytics & Insights</h3>
+                <p>Comprehensive learning analytics, progress tracking, and predictive insights. Enterprise-grade dashboards for educators and administrators.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Enterprise Security</h3>
+                <p>SOC 2 Type II compliant, GDPR ready, and FERPA compliant. End-to-end encryption and comprehensive audit trails for sensitive educational data.</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Real-Time Updates</h3>
+                <p>WebSocket connections for live collaboration, real-time quiz updates, and instant feedback. Perfect for classroom environments and remote learning.</p>
+            </div>
+        </div>
+
+        <section class="api-section" id="api-docs">
+            <h2>Core API Endpoints</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method">POST</span>
+                    <span class="path">/api/explain</span>
+                </div>
+                <p>Generate adaptive explanations based on student profile and learning history.</p>
+                
+                <div class="code-block" data-lang="javascript">
+<code><span class="keyword">const</span> response = <span class="keyword">await</span> fetch(<span class="string">'/api/explain'</span>, {
+  <span class="keyword">method</span>: <span class="string">'POST'</span>,
+  <span class="keyword">headers</span>: { <span class="string">'Content-Type'</span>: <span class="string">'application/json'</span> },
+  <span class="keyword">body</span>: JSON.stringify({
+    <span class="keyword">question</span>: <span class="string">'Explain matrix multiplication'</span>,
+    <span class="keyword">student_id</span>: <span class="string">'student_123'</span>,
+    <span class="keyword">grade_level</span>: <span class="string">'10'</span>
+  })
+});</code>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method">POST</span>
+                    <span class="path">/api/generate-video</span>
+                </div>
+                <p>Generate professional educational videos with Manim integration.</p>
+                
+                <div class="code-block" data-lang="python">
+<code><span class="keyword">import</span> requests
+
+response = requests.post(<span class="string">'https://api.snaplearn.ai/generate-video'</span>, {
+    <span class="string">'topic'</span>: <span class="string">'factorials'</span>,
+    <span class="string">'student_id'</span>: <span class="string">'student_123'</span>,
+    <span class="string">'quality'</span>: <span class="string">'high'</span>,
+    <span class="string">'include_captions'</span>: <span class="keyword">True</span>
+})</code>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header">
+                    <span class="method">POST</span>
+                    <span class="path">/api/quiz/generate</span>
+                </div>
+                <p>Create adaptive quizzes tailored to student weaknesses and learning style.</p>
+                
+                <div class="code-block" data-lang="curl">
+<code>curl -X POST https://api.snaplearn.ai/quiz/generate \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{
+    "topic": "matrices",
+    "num_questions": 5,
+    "difficulty": "adaptive",
+    "student_id": "student_123"
+  }'</span></code>
+                </div>
+            </div>
+        </section>
+
+        <section class="demo-panel">
+            <h2>Interactive API Demo</h2>
+            <p>Test our API endpoints in real-time. Select an operation below to see live responses.</p>
+            
+            <div class="demo-controls">
+                <button class="btn" onclick="demoExplain()">Generate Explanation</button>
+                <button class="btn" onclick="demoVideo()">Create Video</button>
+                <button class="btn" onclick="demoQuiz()">Generate Quiz</button>
+                <button class="btn btn-secondary" onclick="demoProfile()">Get Profile</button>
+            </div>
+            
+            <div class="response-panel" id="responsePanel">
+                <div class="response-header">
+                    <h3>API Response</h3>
+                    <span class="response-status" id="status">Ready</span>
+                </div>
+                <div id="responseContent">
+                    <p style="color: var(--neutral-400);">Select an API operation above to see the live response</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="api-section">
+            <h2>Integration Examples</h2>
+            
+            <h3>React Integration</h3>
+            <div class="code-block" data-lang="jsx">
+<code><span class="keyword">import</span> { SnapLearnSDK } <span class="keyword">from</span> <span class="string">'@snaplearn/react-sdk'</span>;
+
+<span class="keyword">function</span> TutorComponent() {
+  <span class="keyword">const</span> { explainTopic, loading } = SnapLearnSDK({
+    <span class="keyword">apiKey</span>: process.env.SNAPLEARN_API_KEY,
+    <span class="keyword">studentId</span>: <span class="string">'student_123'</span>
+  });
+
+  <span class="keyword">return</span> (
+    &lt;TutorInterface
+      <span class="keyword">onQuestion</span>={explainTopic}
+      <span class="keyword">loading</span>={loading}
+      <span class="keyword">adaptive</span>={<span class="keyword">true</span>}
+    /&gt;
+  );
+}</code>
+            </div>
+
+            <h3>Python Integration</h3>
+            <div class="code-block" data-lang="python">
+<code><span class="keyword">from</span> snaplearn <span class="keyword">import</span> SnapLearnClient
+
+client = SnapLearnClient(api_key=<span class="string">'your-api-key'</span>)
+
+<span class="comment"># Generate adaptive explanation</span>
+explanation = client.explain(
+    question=<span class="string">'What are factorials?'</span>,
+    student_id=<span class="string">'student_123'</span>,
+    grade_level=<span class="number">10</span>
+)
+
+<span class="comment"># Create professional video</span>
+video = client.generate_video(
+    topic=<span class="string">'matrices'</span>,
+    duration_minutes=<span class="number">7</span>,
+    quality=<span class="string">'ultra'</span>
+)
+
+print(f<span class="string">"Video ready: {video.url}"</span>)</code>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Demo functionality
+        function showLoading() {
+            document.getElementById('status').textContent = 'Processing...';
+            document.getElementById('responseContent').innerHTML = `
+                <div class="loading">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+            `;
+        }
+
+        function showResponse(data) {
+            document.getElementById('status').textContent = '200 OK';
+            document.getElementById('responseContent').innerHTML = `
+                <div class="code-block" data-lang="json">
+                    <code>${JSON.stringify(data, null, 2)}</code>
+                </div>
+            `;
+        }
+
+        async function demoExplain() {
+            showLoading();
+            setTimeout(() => {
+                showResponse({
+                    "explanation": {
+                        "topic": "matrices",
+                        "approach": "visual_practical",
+                        "title": "Matrices: Organizing Data Like a Pro",
+                        "content": "Think of a matrix as a super-organized spreadsheet...",
+                        "blackboard_script": [
+                            {"action": "write_title", "content": "Matrices: Data Organization Masters!"},
+                            {"action": "draw_real_example", "type": "spreadsheet"}
+                        ],
+                        "effectiveness_score": 0.92,
+                        "processing_time": 6.2
+                    },
+                    "student_adaptation": {
+                        "approach_changed": true,
+                        "reason": "Student responds better to visual examples",
+                        "confidence": 0.89
+                    }
+                });
+            }, 2000);
+        }
+
+        async function demoVideo() {
+            showLoading();
+            setTimeout(() => {
+                showResponse({
+                    "video": {
+                        "id": "video_matrices_20260426",
+                        "title": "Matrix Operations: From Theory to Applications",
+                        "duration_seconds": 456,
+                        "url": "/videos/matrices_professional_20260426.mp4",
+                        "status": "completed",
+                        "chapters": [
+                            {"title": "Introduction", "start_time": 0},
+                            {"title": "Operations", "start_time": 68},
+                            {"title": "Applications", "start_time": 170}
+                        ],
+                        "quality": "1080p",
+                        "has_captions": true,
+                        "render_time": 58.3
+                    }
+                });
+            }, 3000);
+        }
+
+        async function demoQuiz() {
+            showLoading();
+            setTimeout(() => {
+                showResponse({
+                    "quiz": {
+                        "quiz_id": "quiz_matrices_adaptive_001",
+                        "title": "Adaptive Matrix Operations Quiz",
+                        "questions": [
+                            {
+                                "id": 1,
+                                "question": "What is the result of adding two 2×2 matrices?",
+                                "options": {
+                                    "A": "A 2×2 matrix with summed elements",
+                                    "B": "A 4×4 matrix",
+                                    "C": "Cannot be determined"
+                                }
+                            }
+                        ],
+                        "personalization": {
+                            "targets_weaknesses": ["matrix_operations"],
+                            "difficulty_adapted": "medium_to_easy",
+                            "learning_style": "visual"
+                        }
+                    }
+                });
+            }, 1500);
+        }
+
+        async function demoProfile() {
+            showLoading();
+            setTimeout(() => {
+                showResponse({
+                    "profile": {
+                        "student_id": "alex_demo_2026",
+                        "grade": "10",
+                        "learning_style": "visual",
+                        "quiz_accuracy": 0.72,
+                        "strengths": ["algebraic_expressions", "pattern_recognition"],
+                        "weaknesses": ["matrix_operations", "factorial_applications"],
+                        "recommended_approach": "visual_practical",
+                        "engagement_metrics": {
+                            "session_length_avg": 18.5,
+                            "completion_rate": 0.87,
+                            "improvement_velocity": 0.23
+                        }
+                    }
+                });
+            }, 800);
+        }
+    </script>
+</body>
+</html>

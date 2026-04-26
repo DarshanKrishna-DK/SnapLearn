@@ -29,6 +29,10 @@ wheels/
 .env.production.local
 *.env
 
+# Sample lesson MP4s (regenerate with python scripts/fetch_lesson_videos.py)
+frontend/public/videos/*.mp4
+frontend/public/videos/*.webm
+
 # IDEs and editors (only existing ones)
 .cursor/
 .vscode/
@@ -37,6 +41,15 @@ wheels/
 config/
 .zed/
 Reference Docs/
+SnapSnap/
+
+# Mock and demo assets (not application source)
+**/mock_scripts/
+**/mock_content/
+**/mock_student_profiles/
+**/backend_mocks/
+temp_manim/
+backend/student_profiles/
 
 # Logs
 *.log

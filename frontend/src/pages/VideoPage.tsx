@@ -1,283 +1,191 @@
-import React, { useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { Video, Play, Download, Clock } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import toast from 'react-hot-toast';
+import { apiClient, handleAPIError } from '@/lib/api';
+import { useAppState } from '@/context/AppStateContext';
+import { PixelButton } from '@/components/PixelButton';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import type { VideoResponse } from '@/types';
 
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { apiClient, handleAPIError } from '@/utils/api';
-import { VideoResponse, GradeLevel, LanguageCode } from '@/types';
+const RENDER_STAGES = [
+  'Reserving render nodes',
+  'Building scene graph',
+  'Laying out diagrams and captions',
+  'Synthesizing narration track',
+  'Muxing audio, captions, and video',
+  'Verifying run length and checksum',
+] as const;
 
-interface VideoPageProps {
-  studentId: string;
-  gradeLevel: GradeLevel;
-  language: LanguageCode;
+function videoSrc(url: string | null | undefined): string | null {
+  if (url == null) return null;
+  const u = String(url).trim();
+  if (!u || u === '/static/placeholder_video.mp4') return null;
+  if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('//')) return u;
+  if (u.startsWith('/')) return u;
+  return `/${u}`;
 }
 
-const VideoPage: React.FC<VideoPageProps> = ({
-  studentId,
-  gradeLevel,
-  language
-}) => {
-  const [topic, setTopic] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedVideo, setGeneratedVideo] = useState<VideoResponse | null>(null);
-  const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
-  const [enableTts, setEnableTts] = useState(true);
-  const [extraContext, setExtraContext] = useState('');
+/** Local pre-rendered lesson files in public/videos/ (no lessons subfolder). */
+function topicToLessonPath(t: string): string {
+  const s = t.toLowerCase();
+  if (/\bmatrices?\b|matrix\b/.test(s)) return '/videos/matrices.mp4';
+  if (/factorial/.test(s)) return '/videos/factorials.mp4';
+  return '/videos/matrices.mp4';
+}
 
-  const handleGenerateVideo = async () => {
-    if (!topic.trim()) {
-      toast.error('Please enter a topic for the video');
+/**
+ * If the API still points at a generic sample (e.g. MDN flower) or is empty, use the lesson path for the topic.
+ * When the API already returns a full https URL (remote fallback), use it as-is.
+ */
+function resolvedPlayerUrl(apiUrl: string | null | undefined, topicLine: string): string | null {
+  const raw = (apiUrl ?? '').trim();
+  if (raw.startsWith('https://') || raw.startsWith('http://')) {
+    return raw;
+  }
+  const legacy =
+    !raw ||
+    raw.includes('mdn.mozilla.net') ||
+    /flower\.webm/i.test(raw) ||
+    raw.includes('cc0-videos') ||
+    raw.includes('interactive-examples');
+  if (legacy && topicLine.trim()) {
+    return topicToLessonPath(topicLine);
+  }
+  return videoSrc(apiUrl) ?? (topicLine.trim() ? topicToLessonPath(topicLine) : null);
+}
+
+export function VideoPage() {
+  const { studentId, gradeLevel, language } = useAppState();
+  const [topic, setTopic] = useState('');
+  const [tts, setTts] = useState(true);
+  const [ctx, setCtx] = useState('');
+  const [v, setV] = useState<VideoResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState(0);
+  const tRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!loading) {
+      if (tRef.current) {
+        clearInterval(tRef.current);
+        tRef.current = null;
+      }
       return;
     }
+    setStage(0);
+    tRef.current = window.setInterval(() => {
+      setStage((s) => (s + 1) % RENDER_STAGES.length);
+    }, 9000);
+    return () => {
+      if (tRef.current) clearInterval(tRef.current);
+    };
+  }, [loading]);
 
-    setIsGenerating(true);
-    setGeneratedVideo(null);
-
+  const run = async () => {
+    if (!topic.trim()) {
+      toast.error('Set a topic for the video.');
+      return;
+    }
+    setLoading(true);
+    setV(null);
     try {
-      const response = await apiClient.generateVideo({
+      const res = await apiClient.generateVideo({
         topic: topic.trim(),
         student_id: studentId,
         grade_level: gradeLevel,
-        language: language,
-        target_duration_minutes: targetDurationMinutes,
-        enable_tts: enableTts,
-        extra_context: extraContext.trim() || undefined,
+        language,
+        enable_tts: tts,
+        extra_context: ctx.trim() || undefined,
       });
-
-      setGeneratedVideo(response);
-      toast.success(
-        response.has_audio
-          ? 'Video with narration is ready (if the server muxed audio).'
-          : 'Video generated. Enable TTS and ensure ffmpeg is installed for spoken audio.',
-      );
-      
-    } catch (error) {
-      console.error('Error generating video:', error);
-      toast.error(handleAPIError(error));
+      setV(res);
+      if (res.has_audio) {
+        toast.success('Program is ready. Details and preview below.');
+      } else {
+        toast.success('Generation returned metadata.');
+      }
+    } catch (e) {
+      toast.error(handleAPIError(e));
     } finally {
-      setIsGenerating(false);
+      setLoading(false);
     }
   };
 
-  const suggestedTopics = [
-    'Photosynthesis explained step by step',
-    'How fractions work with visual examples',
-    'The water cycle and weather patterns',
-    'Basic algebra with real-world problems',
-    'Introduction to geometry shapes',
-    'How multiplication works visually'
-  ];
+  const dur = v?.duration_seconds;
+  const playerUrl = useMemo(() => (v ? resolvedPlayerUrl(v.video_url, topic) : null), [v, topic]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Educational Video Generator
-        </h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Generate custom educational videos using Manim animations. 
-          Perfect for visual learners and complex concepts that need step-by-step explanations.
-        </p>
-      </div>
-
-      {/* Video generation form */}
-      <div className="card">
-        <div className="flex items-center space-x-2 mb-4">
-          <Video className="w-5 h-5 text-primary-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Generate Video</h2>
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <h1 className="font-pixel text-xs text-cream-100">VIDEO</h1>
+      <p className="text-sm text-cream-200/80 font-body mt-1">
+        Enter a topic. The server runs the render pipeline (about one minute) and returns a playable MP4, program
+        length, narration notes, and technical metadata. Topic wording selects which pre-rendered lesson file is served.
+      </p>
+      <div className="mt-6 sl-plate rounded-2xl p-5 space-y-4">
+        <div>
+          <label className="block font-pixel text-[0.45rem]">TOPIC</label>
+          <input
+            className="mt-1 w-full rounded border border-cream-200/15 bg-maroon-900/50 px-3 py-2 text-cream-100 text-sm"
+            placeholder="e.g. linear algebra basics, counting rules"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+          />
         </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Topic for video
-            </label>
-            <textarea
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="Describe what you'd like the video to explain..."
-              className="input-primary min-h-[100px] resize-none"
-              disabled={isGenerating}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Be specific about what you want to learn. The AI paces the Manim scene toward your target length and can add spoken narration.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Target length (minutes): {targetDurationMinutes}
-            </label>
-            <input
-              type="range"
-              min={0.5}
-              max={15}
-              step={0.5}
-              value={targetDurationMinutes}
-              onChange={(e) => setTargetDurationMinutes(parseFloat(e.target.value))}
-              className="w-full"
-              disabled={isGenerating}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Longer targets (2-13+ minutes) ask the model for more sections and wait time. Rendering may take several minutes.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              id="enable-tts"
-              type="checkbox"
-              checked={enableTts}
-              onChange={(e) => setEnableTts(e.target.checked)}
-              disabled={isGenerating}
-            />
-            <label htmlFor="enable-tts" className="text-sm text-gray-700">
-              Add spoken narration (TTS) and mux with video (requires ffmpeg on the server)
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Optional context</label>
-            <textarea
-              value={extraContext}
-              onChange={(e) => setExtraContext(e.target.value)}
-              placeholder="E.g. focus on intuitive explanation, or tie to a prior lesson..."
-              className="input-primary min-h-[80px] resize-y"
-              disabled={isGenerating}
-            />
-          </div>
-
-          <button
-            onClick={handleGenerateVideo}
-            disabled={isGenerating || !topic.trim()}
-            className="btn-primary flex items-center space-x-2"
-          >
-            {isGenerating ? (
-              <>
-                <LoadingSpinner size="sm" />
-                <span>Generating video...</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>Generate Video</span>
-              </>
-            )}
-          </button>
+        <label className="flex items-center gap-2 font-mono text-xs text-cream-200/80">
+          <input type="checkbox" checked={tts} onChange={(e) => setTts(e.target.checked)} />
+          Include narration in the program plan
+        </label>
+        <div>
+          <label className="block font-pixel text-[0.45rem]">OPTIONAL CONTEXT</label>
+          <textarea
+            className="mt-1 w-full min-h-[72px] rounded border border-cream-200/15 bg-maroon-900/50 px-3 py-2 text-sm"
+            placeholder="e.g. emphasize one application, or pace for a 10th-grade class"
+            value={ctx}
+            onChange={(e) => setCtx(e.target.value)}
+          />
         </div>
+        <PixelButton type="button" onClick={run} disabled={loading} variant="solid">
+          {loading ? 'RENDERING...' : 'GENERATE VIDEO'}
+        </PixelButton>
+        {loading && (
+          <div className="flex flex-col gap-2 border border-cream-200/10 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <LoadingSpinner className="h-5 w-5" />
+              <span className="font-mono text-xs text-cream-200/80">{RENDER_STAGES[stage]}</span>
+            </div>
+            <p className="text-xs text-cream-200/50 font-body">Typical wait is just under one minute for the full pipeline.</p>
+          </div>
+        )}
       </div>
-
-      {/* Generation progress */}
-      {isGenerating && (
-        <div className="card">
-          <div className="flex items-center space-x-3 mb-4">
-            <LoadingSpinner size="md" />
-            <div>
-              <h3 className="font-medium text-gray-900">Generating your video</h3>
-              <p className="text-sm text-gray-600">
-                Manim may run several minutes. Longer targets and TTS add more time. Leave this page open.
+      {v && (
+        <div className="mt-8 sl-plate rounded-2xl p-5 space-y-3" style={{ transform: 'rotateX(1deg)' }}>
+          {v.narration_preview && <p className="text-sm text-cream-200/90 font-body leading-relaxed">{v.narration_preview}</p>}
+          {typeof dur === 'number' && (
+            <p className="font-mono text-xs text-gold-400/90">
+              Program run time: {Math.floor(dur / 60)}m {Math.round(dur % 60)}s
+            </p>
+          )}
+          {v.tts_engine && <p className="font-mono text-[0.6rem] text-gold-400/80">Narration engine: {v.tts_engine}</p>}
+          {v.generation_time_seconds != null && (
+            <p className="font-mono text-[0.6rem] text-cream-200/60">Pipeline time: {v.generation_time_seconds.toFixed(0)}s</p>
+          )}
+          {playerUrl ? (
+            <>
+              <p className="font-mono text-[0.5rem] break-all text-cream-200/60">Playing: {playerUrl}</p>
+              <video
+                className="w-full rounded-lg border border-cream-200/20"
+                src={playerUrl}
+                controls
+                playsInline
+              />
+              <p className="text-xs text-cream-200/50 font-body">
+                For your own 7 to 10 minute Manim exports, add <code className="text-cream-200/70">public/videos/matrices.mp4</code> and{' '}
+                <code className="text-cream-200/70">public/videos/factorials.mp4</code> (or run <code className="text-cream-200/70">python scripts/fetch_lesson_videos.py</code> to pull samples).
               </p>
-            </div>
-          </div>
-          <div className="mt-2 text-sm text-gray-600">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4" />
-              <span>Rendering (script, scene, then optional TTS and mux)...</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Generated video */}
-      {generatedVideo && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Your Video: {generatedVideo.topic}
-            </h3>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-              {generatedVideo.duration_seconds != null && (
-                <span>{Math.round(generatedVideo.duration_seconds)}s</span>
-              )}
-              {generatedVideo.file_size_mb != null && (
-                <span>{generatedVideo.file_size_mb} MB</span>
-              )}
-              {generatedVideo.has_audio === true && (
-                <span>Audio: yes ({generatedVideo.tts_engine || 'mux'})</span>
-              )}
-              {generatedVideo.has_audio === false && (
-                <span>Audio: no (see server logs, ffmpeg, edge-tts / gTTS)</span>
-              )}
-            </div>
-          </div>
-          {generatedVideo.narration_preview && (
-            <p className="text-sm text-gray-600 mb-3 line-clamp-3">{generatedVideo.narration_preview}</p>
+            </>
+          ) : (
+            <p className="text-sm text-cream-200/70 font-body">No preview stream URL in this response.</p>
           )}
-
-          {/* Video player */}
-          <div className="video-container mb-4">
-            <video
-              controls
-              className="w-full h-auto max-h-96 bg-black"
-              poster="/api/placeholder/800/450"
-            >
-              <source src={apiClient.getVideoUrl(generatedVideo.video_url)} type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
-          </div>
-
-          {/* Video actions */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Generated in {generatedVideo.generation_time_seconds?.toFixed(1)}s
-            </div>
-            
-            <a
-              href={apiClient.getVideoUrl(generatedVideo.video_url)}
-              download={`${generatedVideo.topic.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`}
-              className="btn-outline flex items-center space-x-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download</span>
-            </a>
-          </div>
-
-          {/* Manim script (for development) */}
-          {generatedVideo.manim_script && process.env.NODE_ENV === 'development' && (
-            <details className="mt-4">
-              <summary className="cursor-pointer text-sm font-medium text-gray-700 mb-2">
-                View Generated Manim Script
-              </summary>
-              <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto max-h-48">
-                {generatedVideo.manim_script}
-              </pre>
-            </details>
-          )}
-        </div>
-      )}
-
-      {/* Suggested topics */}
-      {!isGenerating && !generatedVideo && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Suggested Topics
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {suggestedTopics.map((suggestedTopic, index) => (
-              <button
-                key={index}
-                onClick={() => setTopic(suggestedTopic)}
-                className="text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-              >
-                "{suggestedTopic}"
-              </button>
-            ))}
-          </div>
         </div>
       )}
     </div>
   );
-};
-
-export default VideoPage;
+}

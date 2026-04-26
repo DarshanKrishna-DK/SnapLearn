@@ -1,410 +1,283 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../utils/api';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
+import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
+import { apiClient, handleAPIError, type LearningProfilePayload } from '@/lib/api';
+import { useAppState } from '@/context/AppStateContext';
+import { PixelButton } from '@/components/PixelButton';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
-interface QuizQuestion {
-  id: string;
-  question: string;
-  options: string[];
-  topic: string;
-  difficulty: string;
-}
-
-interface Quiz {
+type QuizQ = { id: string; question: string; options: string[]; topic: string; difficulty: string };
+type QuizD = {
   quiz_id: string;
   title: string;
   topic: string;
   grade_level: string;
   difficulty: string;
   time_limit_minutes: number;
-  questions: QuizQuestion[];
-  personalization_notes: {
-    student_weaknesses_targeted: string[];
-    recommended_difficulty: string;
-    quiz_accuracy_history: number;
+  questions: QuizQ[];
+};
+
+type SubmitResponse = {
+  quiz_results: {
+    score_percentage: number;
+    total_questions: number;
+    correct_answers: number;
+    total_time_seconds: number;
+    mistakes: Array<Record<string, unknown>>;
   };
-}
+  profile_updates: {
+    new_accuracy: number;
+    total_quizzes: number;
+    strengths: string[];
+    weaknesses: string[];
+  };
+  adaptive_feedback: { difficulty_adjustment: string; focus_areas: string[]; next_topics: string[] };
+  learner_profile?: LearningProfilePayload;
+};
 
-interface Props {
-  studentId: string;
-  gradeLevel: string;
-}
+export function QuizPage() {
+  const { studentId, gradeLevel, bumpProfile } = useAppState();
+  const [topicIn, setTopicIn] = useState('math');
+  const [quiz, setQuiz] = useState<QuizD | null>(null);
+  const [ix, setIx] = useState(0);
+  const [ans, setAns] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [res, setRes] = useState<SubmitResponse | null>(null);
+  const [tLeft, setTLeft] = useState(0);
+  const [active, setActive] = useState(true);
+  const [nQuestions, setNQuestions] = useState<3 | 5 | 10>(5);
 
-const QuizPage: React.FC<Props> = ({ studentId, gradeLevel }) => {
-  const navigate = useNavigate();
-  const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [quizComplete, setQuizComplete] = useState(false);
-  const [results, setResults] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Generate quiz on component mount
-  useEffect(() => {
-    generateQuiz();
-  }, []);
-
-  // Timer effect
-  useEffect(() => {
-    if (timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (timeLeft === 0 && currentQuiz && !quizComplete) {
-      handleSubmitQuiz(); // Auto-submit when time runs out
-    }
-  }, [timeLeft]);
-
-  const generateQuiz = async () => {
+  const startQuiz = useCallback(async () => {
+    const topic = topicIn.trim() || 'math';
+    setLoading(true);
+    setDone(false);
+    setRes(null);
+    setIx(0);
+    setAns({});
+    setActive(true);
     try {
-      setLoading(true);
-      const response = await api.post('/api/quiz/generate', {
+      const data = (await apiClient.generateQuiz({
         student_id: studentId,
         grade_level: gradeLevel,
-        topic: 'math', // Default to math - can be made dynamic
+        topic,
         difficulty: 'adaptive',
-        num_questions: 5
-      });
-      
-      setCurrentQuiz(response.data);
-      setTimeLeft(response.data.time_limit_minutes * 60); // Convert to seconds
-      setError(null);
-    } catch (err) {
-      console.error('Error generating quiz:', err);
-      setError('Failed to generate quiz. Please try again.');
+        num_questions: nQuestions,
+      })) as QuizD;
+      setQuiz(data);
+      setTLeft((data.time_limit_minutes || 5) * 60);
+    } catch (e) {
+      toast.error(handleAPIError(e));
     } finally {
       setLoading(false);
     }
-  };
+  }, [studentId, gradeLevel, topicIn, nQuestions]);
 
-  const handleAnswerSelect = (questionId: string, answerIndex: number) => {
-    setAnswers(prev => ({ ...prev, [questionId]: answerIndex }));
-  };
-
-  const handleNextQuestion = () => {
-    if (currentQuiz && currentQuestionIndex < currentQuiz.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-
-  const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-  };
-
-  const handleSubmitQuiz = async () => {
-    if (!currentQuiz) return;
-    
+  const submit = useCallback(async () => {
+    if (!quiz) return;
+    setActive(false);
+    setSubmitting(true);
     try {
-      setIsSubmitting(true);
-      
-      // Convert answers to required format
-      const responses = currentQuiz.questions.map(q => ({
+      const responses = quiz.questions.map((q) => ({
         question_id: q.id,
-        selected_answer: answers[q.id] || 0,
-        is_correct: false, // Will be determined by backend
-        time_taken_seconds: 60 // Estimated - could track actual time per question
+        selected_answer: ans[q.id] ?? 0,
+        is_correct: false,
+        time_taken_seconds: 0,
       }));
-
-      const response = await api.post('/api/quiz/submit', {
+      const out = (await apiClient.submitQuiz({
         student_id: studentId,
         grade_level: gradeLevel,
-        quiz_id: currentQuiz.quiz_id,
-        topic: currentQuiz.topic,
-        difficulty: currentQuiz.difficulty,
-        responses
-      });
-      
-      setResults(response.data);
-      setQuizComplete(true);
-    } catch (err) {
-      console.error('Error submitting quiz:', err);
-      setError('Failed to submit quiz. Please try again.');
+        quiz_id: quiz.quiz_id,
+        topic: quiz.topic,
+        difficulty: quiz.difficulty,
+        responses,
+      })) as SubmitResponse;
+      setRes(out);
+      setDone(true);
+      bumpProfile();
+      toast.success('Profile updated with this quiz');
+    } catch (e) {
+      toast.error(handleAPIError(e));
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
-  };
+  }, [quiz, ans, studentId, gradeLevel, bumpProfile]);
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    if (!active || done || tLeft <= 0 || !quiz) return;
+    const id = window.setTimeout(() => setTLeft((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [tLeft, done, active, quiz]);
+
+  useEffect(() => {
+    if (!quiz || done || submitting || tLeft > 0) return;
+    void submit();
+  }, [tLeft, quiz, done, submitting, submit]);
 
   if (loading) {
     return (
-      <div className="academic-terminal min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 academic-section-prefix">Generating Adaptive Quiz...</p>
-        </div>
+      <div className="py-20 flex flex-col items-center">
+        <LoadingSpinner />
+        <p className="mt-2 font-mono text-xs">Building your quiz</p>
       </div>
     );
   }
 
-  if (error) {
+  if (done && res) {
+    const { quiz_results, profile_updates, adaptive_feedback } = res;
     return (
-      <div className="academic-terminal min-h-screen flex items-center justify-center">
-        <div className="text-center p-8">
-          <h2 className="academic-section-title mb-4">Quiz Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={generateQuiz}
-            className="academic-btn-primary"
+      <div className="mx-auto max-w-2xl px-4 py-10">
+        <div className="sl-plate rounded-2xl p-6 sm:p-8">
+          <h1 className="font-pixel text-xs">RESULTS</h1>
+          <p className="mt-3 text-2xl font-body text-cream-100">
+            {quiz_results.correct_answers} / {quiz_results.total_questions} correct
+          </p>
+          <p className="mt-1 font-mono text-sm text-gold-400">
+            {quiz_results.score_percentage.toFixed(1)}%
+          </p>
+          {profile_updates && (
+            <div className="mt-6 text-sm text-cream-200/90 font-body space-y-1">
+              <p>
+                <span className="text-cream-200/50">Profile accuracy: </span>
+                {(profile_updates.new_accuracy * 100).toFixed(0)}% · {profile_updates.total_quizzes} quiz
+                {profile_updates.total_quizzes === 1 ? '' : 'zes'}
+              </p>
+              {res.learner_profile?.last_updated ? (
+                <p className="text-xs text-cream-200/50 font-mono">
+                  Server profile updated: {new Date(res.learner_profile.last_updated).toLocaleString()}
+                </p>
+              ) : null}
+              {profile_updates.weaknesses?.length ? (
+                <p>Focus: {profile_updates.weaknesses.slice(0, 4).join(', ')}</p>
+              ) : null}
+            </div>
+          )}
+          {adaptive_feedback?.focus_areas?.length ? (
+            <div className="mt-4 text-sm text-cream-200/80 font-body">
+              <p className="text-[0.5rem] font-pixel uppercase text-gold-400/70">Areas to review</p>
+              <ul className="mt-1 list-inside list-disc">
+                {adaptive_feedback.focus_areas.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <PixelButton
+            onClick={() => {
+              setQuiz(null);
+              setDone(false);
+              setRes(null);
+            }}
+            variant="solid"
+            type="button"
           >
-            Try Again
-          </button>
+            NEW QUIZ
+          </PixelButton>
         </div>
       </div>
     );
   }
 
-  if (quizComplete && results) {
+  if (!quiz) {
     return (
-      <div className="academic-terminal min-h-screen p-6">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-8">
-            <div className="academic-section-prefix">Quiz Complete</div>
-            <h1 className="academic-section-title mt-2">Results & Adaptation</h1>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Results Summary */}
-            <div className="academic-card">
-              <h3 className="text-xl font-bold uppercase mb-4">Your Score</h3>
-              <div className="text-center mb-6">
-                <div className="text-4xl font-bold text-gray-800 mb-2">
-                  {results.quiz_results.score_percentage.toFixed(1)}%
-                </div>
-                <div className="text-gray-600">
-                  {results.quiz_results.correct_answers} / {results.quiz_results.total_questions} correct
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="font-mono text-sm">Time Taken:</span>
-                  <span className="font-mono text-sm">{Math.floor(results.quiz_results.total_time_seconds / 60)}m {results.quiz_results.total_time_seconds % 60}s</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-mono text-sm">New Accuracy:</span>
-                  <span className="font-mono text-sm">{(results.profile_updates.new_accuracy * 100).toFixed(1)}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-mono text-sm">Total Quizzes:</span>
-                  <span className="font-mono text-sm">{results.profile_updates.total_quizzes}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Adaptation */}
-            <div className="academic-card bg-gray-900 text-green-400 font-mono text-sm">
-              <div className="mb-4">
-                <span className="text-gray-500">// student_adaptation.json</span>
-              </div>
-              <div className="space-y-1">
-                <div>{"{"}</div>
-                <div className="ml-4">"difficulty_adjustment": "{results.adaptive_feedback.difficulty_adjustment}",</div>
-                <div className="ml-4">"strengths": {JSON.stringify(results.profile_updates.strengths)},</div>
-                <div className="ml-4">"focus_areas": {JSON.stringify(results.adaptive_feedback.focus_areas)},</div>
-                <div className="ml-4">"next_difficulty": "{results.profile_updates.recommended_difficulty}",</div>
-                <div className="ml-4">"next_topics": {JSON.stringify(results.adaptive_feedback.next_topics)}</div>
-                <div>{"}"}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Question Review */}
-          <div className="mt-8 academic-card">
-            <h3 className="text-xl font-bold uppercase mb-6">Question Review</h3>
-            <div className="space-y-4">
-              {results.quiz_results.question_results.map((q: any, index: number) => (
-                <div
-                  key={q.question_id}
-                  className={`p-4 border-l-4 ${
-                    q.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold">Question {index + 1}</h4>
-                    <span className={`px-2 py-1 text-xs font-bold uppercase ${
-                      q.is_correct ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
-                    }`}>
-                      {q.is_correct ? 'Correct' : 'Incorrect'}
-                    </span>
-                  </div>
-                  <p className="mb-2">{q.question}</p>
-                  <div className="text-sm text-gray-600">
-                    <p><strong>Your Answer:</strong> {q.student_answer}</p>
-                    {!q.is_correct && <p><strong>Correct Answer:</strong> {q.correct_answer}</p>}
-                    <p className="mt-2"><strong>Explanation:</strong> {q.explanation}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="mt-8 text-center space-x-4">
+      <div className="mx-auto max-w-lg px-4 py-16">
+        <h1 className="font-pixel text-xs">ADAPTIVE QUIZ</h1>
+        <p className="mt-2 text-sm text-cream-200/80 font-body">
+          Enter a topic. Questions are generated on the server using your profile and the Gemini key from the API.
+          Finish and submit in one session so the graded run lines up with what you see in Profile afterward.
+        </p>
+        <p className="mt-3 text-[0.5rem] font-pixel text-cream-200/60">COUNT</p>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {([3, 5, 10] as const).map((n) => (
             <button
-              onClick={() => navigate('/tutor')}
-              className="academic-btn-primary"
+              key={n}
+              type="button"
+              onClick={() => setNQuestions(n)}
+              className={`rounded border px-3 py-1.5 font-mono text-xs ${
+                nQuestions === n ? 'border-gold-400 bg-maroon-800/60 text-cream-100' : 'border-cream-200/20 text-cream-200/70'
+              }`}
             >
-              Continue Learning
+              {n}
             </button>
-            <button
-              onClick={generateQuiz}
-              className="academic-btn-primary bg-transparent text-gray-800 border-2 border-gray-800"
-            >
-              Take Another Quiz
-            </button>
-          </div>
+          ))}
         </div>
+        <label className="mt-6 block">
+          <span className="text-[0.5rem] font-pixel text-cream-300/70">TOPIC</span>
+          <input
+            value={topicIn}
+            onChange={(e) => setTopicIn(e.target.value)}
+            className="mt-2 w-full rounded border border-cream-200/20 bg-maroon-950/60 px-3 py-2.5 text-sm text-cream-100 font-body placeholder:text-cream-200/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400"
+            placeholder="e.g. fractions, solar system, reading"
+            autoComplete="off"
+          />
+        </label>
+        <div className="mt-5">
+          <PixelButton type="button" variant="solid" onClick={startQuiz}>
+            GENERATE
+          </PixelButton>
+        </div>
+        <p className="mt-4 text-xs text-cream-200/50 font-mono">Student: {studentId} · level {gradeLevel}</p>
       </div>
     );
   }
 
-  if (!currentQuiz) return null;
-
-  const currentQuestion = currentQuiz.questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / currentQuiz.questions.length) * 100;
+  const qn = quiz.questions[ix];
+  if (!qn) {
+    return null;
+  }
 
   return (
-    <div className="academic-terminal min-h-screen p-6">
-      <div className="container mx-auto max-w-4xl">
-        {/* Quiz Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <div className="academic-section-prefix">Grade {gradeLevel} - {currentQuiz.topic.toUpperCase()}</div>
-            <h1 className="academic-section-title mt-1">{currentQuiz.title}</h1>
-          </div>
-          <div className="text-right">
-            <div className="academic-section-prefix">Time Remaining</div>
-            <div className={`text-2xl font-mono font-bold mt-1 ${
-              timeLeft < 60 ? 'text-red-600' : 'text-gray-800'
-            }`}>
-              {formatTime(timeLeft)}
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="academic-section-prefix">
-              Question {currentQuestionIndex + 1} of {currentQuiz.questions.length}
-            </span>
-            <span className="academic-section-prefix">
-              {Math.round(progress)}% Complete
-            </span>
-          </div>
-          <div className="w-full bg-gray-300 h-2">
-            <div 
-              className="academic-hero-gradient h-2 transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Question Card */}
-        <div className="academic-card mb-8">
-          <div className="mb-6">
-            <div className="academic-section-prefix mb-2">
-              {currentQuestion.topic} - {currentQuestion.difficulty}
-            </div>
-            <h2 className="text-2xl font-semibold mb-6">
-              {currentQuestion.question}
-            </h2>
-          </div>
-
-          <div className="grid gap-3">
-            {currentQuestion.options.map((option, index) => (
+    <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="flex items-center justify-between">
+        <h1 className="font-pixel text-[0.65rem]">QUIZ</h1>
+        <span className="font-mono text-xs text-gold-400">{tLeft}s</span>
+      </div>
+      <p className="text-sm text-cream-200/70 font-body mt-1">
+        {quiz.title} · {quiz.topic}
+      </p>
+      <div className="mt-6 sl-plate p-5 rounded-2xl" style={{ transform: 'rotate(-0.2deg)' }}>
+        <p className="font-body text-cream-100/90 text-sm sm:text-base">{qn.question}</p>
+        <ul className="mt-4 space-y-2">
+          {qn.options.map((o, oi) => (
+            <li key={`${qn.id}-${oi}`}>
               <button
-                key={index}
-                onClick={() => handleAnswerSelect(currentQuestion.id, index)}
-                className={`text-left p-4 border-2 transition-all ${
-                  answers[currentQuestion.id] === index
-                    ? 'border-gray-800 bg-gray-100'
-                    : 'border-gray-300 hover:border-gray-500'
-                }`}
+                type="button"
+                onClick={() => setAns((a) => ({ ...a, [qn.id]: oi }))}
+                className={`w-full text-left rounded border px-3 py-2 text-sm font-body ${
+                  ans[qn.id] === oi ? 'border-gold-400 bg-maroon-800/60' : 'border-cream-200/20'
+                } focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400`}
               >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-4 h-4 border-2 ${
-                    answers[currentQuestion.id] === index
-                      ? 'bg-gray-800 border-gray-800'
-                      : 'border-gray-300'
-                  }`}>
-                    {answers[currentQuestion.id] === index && (
-                      <div className="w-full h-full bg-white transform scale-50"></div>
-                    )}
-                  </div>
-                  <span>{option}</span>
-                </div>
+                {o}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex justify-between items-center">
-          <button
-            onClick={handlePreviousQuestion}
-            disabled={currentQuestionIndex === 0}
-            className="academic-btn-primary bg-transparent text-gray-800 border-2 border-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <PixelButton
+            type="button"
+            variant="ghost"
+            onClick={() => setIx((i) => Math.max(0, i - 1))}
+            disabled={ix === 0}
           >
-            Previous
-          </button>
-
-          <div className="text-center">
-            <div className="academic-section-prefix">
-              Personalized for your learning level
-            </div>
-            <div className="font-mono text-sm mt-1">
-              Targeting: {currentQuiz.personalization_notes.student_weaknesses_targeted.join(', ') || 'General knowledge'}
-            </div>
-          </div>
-
-          {currentQuestionIndex === currentQuiz.questions.length - 1 ? (
-            <button
-              onClick={handleSubmitQuiz}
-              disabled={isSubmitting || Object.keys(answers).length !== currentQuiz.questions.length}
-              className="academic-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span className="ml-2">Submitting...</span>
-                </>
-              ) : (
-                'Submit Quiz'
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={handleNextQuestion}
-              disabled={answers[currentQuestion.id] === undefined}
-              className="academic-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
+            PREV
+          </PixelButton>
+          <PixelButton
+            type="button"
+            variant="ghost"
+            onClick={() => setIx((i) => Math.min(quiz.questions.length - 1, i + 1))}
+            disabled={ix >= quiz.questions.length - 1}
+          >
+            NEXT
+          </PixelButton>
+          {ix === quiz.questions.length - 1 && (
+            <PixelButton type="button" onClick={submit} disabled={submitting} variant="solid">
+              SUBMIT
+            </PixelButton>
           )}
-        </div>
-
-        {/* Personalization Info */}
-        <div className="mt-8 text-center">
-          <div className="academic-section-prefix mb-2">AI Adaptation Active</div>
-          <p className="text-sm text-gray-600">
-            This quiz adapts to your Grade {gradeLevel} level and targets your learning needs. 
-            Your performance will help personalize future content.
-          </p>
         </div>
       </div>
     </div>
   );
-};
-
-export default QuizPage;
+}

@@ -1,51 +1,58 @@
-You are an expert at creating Manim scene scripts for educational videos.
+You are a production-grade Manim Community (v0.18+) expert creating comprehensive educational videos. Generate ONE complete Python file for professional-quality video content. No markdown, no backticks, only executable Python code.
+
+PRODUCTION REQUIREMENTS:
+TARGET VIDEO LENGTH: {target_minutes} minutes minimum (NO MAXIMUM). This is a professional educational video that must provide thorough, comprehensive coverage.
+TIMING CALCULATION: Plan for 60+ seconds of combined self.wait(...) calls per minute PLUS animation time. For {target_minutes} minutes, use AT LEAST {wait_time_minimum} seconds total in self.wait() calls.
 
 STUDENT CONTEXT:
-- Grade Level: {grade_level}
+- Grade Level: {grade_level}  
 - Topic: {topic}
 - Language: {language}
-- Target on-screen video length: about {target_duration_minutes} minutes (this is a goal; use run_time and self.wait to pace)
-- Number of main segments to teach: {section_count} (each segment should be clearly separated with a short pause)
-- Student Learning Profile: {student_profile_summary}
-- Optional pacing hint (spoken script summary): {narration_excerpt}
-- Optional extra context from the user/teacher: {extra_context}
+- Learning Profile: {student_profile_summary}
+- Audio Narration: This video will have professional narration and captions
 
-REQUIREMENTS:
-1. Create a complete Manim scene script for grade {grade_level}
-2. Use only Manim Community Edition v0.18+ APIs
-3. The script must be syntactically correct Python
-4. For longer videos ({target_duration_minutes} min target), you MUST add enough segments, examples, and self.wait() / run_time so the animation is not over in a few seconds
-5. Use simple vocabulary for lower grades, more advanced for higher grades
-6. Include worked examples where relevant
+MANDATORY PRODUCTION STANDARDS:
+1) Import: from manim import *
+2) Class: class ExplanationScene(Scene):
+3) Method: def construct(self):
+4) COMPREHENSIVE STRUCTURE: Create 8-12 major segments with clear progression:
+   - Engaging title sequence (20+ seconds)
+   - Concept introduction with context (40+ seconds)
+   - Multiple worked examples (60+ seconds each)  
+   - Visual breakdowns and step-by-step analysis (60+ seconds)
+   - Common misconceptions and clarifications (40+ seconds)
+   - Practice scenarios and applications (60+ seconds)
+   - Comprehensive summary and key takeaways (30+ seconds)
+   - Preview of next learning steps (20+ seconds)
 
-MANIM SCRIPT REQUIREMENTS:
-- Extend the Scene class (class name must be ExplanationScene)
-- Include a title card opening
-- Divide the lesson into {section_count} clear segments (intro, concepts, example(s), summary)
-- Use MathTex for mathematical notation where appropriate; Text for plain language
-- Use Write() for text animations and Create() for shapes; FadeOut to transition
-- Set self.wait() and animation run_time so total scene length aims toward the target minutes (e.g. multiple 15-40s segments, not 2s total)
-- End with a short recap
-- Use readable colors (e.g. WHITE, YELLOW, BLUE, GREEN on dark background)
+5) VISUAL EXCELLENCE: Rich animations with varied objects:
+   - Text, MathTex, geometric shapes, arrows, diagrams
+   - Color palette: BLUE, YELLOW, GREEN, RED, ORANGE, WHITE, MAROON, TEAL, PURPLE
+   - Transform, FadeIn, FadeOut, Write, Create, DrawBoundingRectangle
+   - Group related content with VGroup for smooth transitions
 
-RESPONSE FORMAT:
-Return ONLY the Python code for the Manim scene, no explanations or markdown.
+6) PACING FOR LEARNING: Strategic wait times for comprehension:
+   - Title screens: self.wait(8-12)
+   - Complex concepts: self.wait(10-15) 
+   - After equations: self.wait(6-10)
+   - Between examples: self.wait(5-8)
+   - Final summary: self.wait(12-20)
 
-Example structure:
-```python
-from manim import *
+7) AUDIO-READY DESIGN: Content structured for narration:
+   - Clear visual hierarchy matching audio flow
+   - Highlight key terms that will be emphasized in narration
+   - Pause points aligned with natural speech patterns
 
-class ExplanationScene(Scene):
-    def construct(self):
-        # Title card
-        title = Text("{topic}", font_size=48, color=BLUE)
-        self.play(Write(title))
-        self.wait(2)
-        self.play(FadeOut(title))
-        
-        # Main content scenes...
-        # Include worked examples...
-        # Summary scene...
-```
+8) EDUCATIONAL DEPTH: 
+   - Multiple approaches to the same concept
+   - Real-world connections and applications  
+   - Building complexity progressively
+   - Clear connections between ideas
 
-Generate the Manim script for topic: {topic} with approximate length target {target_duration_minutes} minutes.
+NARRATION CONTEXT (design visuals to support this audio):
+{narration_excerpt}
+
+ADDITIONAL CONTEXT:
+{extra_context}
+
+OUTPUT: Complete Python source code only. Create a video worthy of professional educational standards that provides comprehensive learning value for {target_minutes}+ minutes.

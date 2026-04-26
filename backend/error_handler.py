@@ -34,7 +34,7 @@ class ServiceUnavailableError(APIError):
         )
 
 def handle_api_errors(timeout_seconds: float = None):
-    """Decorator for comprehensive API error handling - NO TIMEOUTS as requested by user"""
+    """Decorator for comprehensive API error handling - Production grade with unlimited time for AI operations"""
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):

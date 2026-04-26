@@ -213,10 +213,13 @@ async def explain_topic(request: QuestionRequest):
             else ""
         )
 
+        _learning_style = getattr(enhanced_profile.learning_style, "value", enhanced_profile.learning_style)
+        _difficulty_pref = getattr(enhanced_profile.difficulty_preference, "value", enhanced_profile.difficulty_preference)
+        
         enhanced_question = f"""
         GRADE LEVEL: {request.grade_level}
         STUDENT CONTEXT: Grade {enhanced_profile.grade} student with {enhanced_profile.quiz_accuracy:.1%} quiz accuracy
-        LEARNING PROFILE: {enhanced_profile.learning_style.value} learner, difficulty preference: {enhanced_profile.difficulty_preference.value}
+        LEARNING PROFILE: {_learning_style} learner, difficulty preference: {_difficulty_pref}
         STRENGTHS: {', '.join(enhanced_profile.strengths) if enhanced_profile.strengths else 'Building foundational skills'}
         AREAS TO WORK ON: {', '.join(enhanced_profile.weaknesses) if enhanced_profile.weaknesses else 'Continue current progress'}
         
@@ -231,7 +234,7 @@ async def explain_topic(request: QuestionRequest):
         
         Please provide a comprehensive explanation that:
         1. Is perfectly appropriate for Grade {request.grade_level}
-        2. Considers this student's learning style: {enhanced_profile.learning_style.value}
+        2. Considers this student's learning style: {_learning_style}
         3. Addresses their knowledge level based on {enhanced_profile.quiz_accuracy:.1%} accuracy
         4. Uses vocabulary and concepts suitable for their grade
         5. Provides 2-3 times more detail than a typical short response
@@ -653,7 +656,7 @@ async def optimize_learning_path(request: LearningPathRequest):
         
         # Generate learning path using AI
         from google import genai
-        client = genai.Client()
+        client = genai.Client(http_options={'headers': {'Referer': 'http://localhost'}})
         
         learning_path_prompt = f"""Create an optimized learning path for this student:
 
@@ -854,7 +857,7 @@ async def get_study_recommendations(request: StudyRecommendationRequest):
         
         # Generate recommendations using AI
         from google import genai
-        client = genai.Client()
+        client = genai.Client(http_options={'headers': {'Referer': 'http://localhost'}})
         
         recommendations_prompt = f"""Generate personalized study recommendations:
 

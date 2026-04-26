@@ -57,7 +57,7 @@ class ManimGenerator:
                 logger.error("Gemini API key not found for video script generation")
                 return
             
-            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
             logger.info("Manim generator: Gemini client initialized")
             
         except ImportError:
@@ -76,26 +76,31 @@ STUDENT CONTEXT:
 - Target on-screen video length: about {target_duration_minutes} minutes (this is a goal; use run_time and self.wait to pace)
 - Number of main segments to teach: {section_count} (each segment should be clearly separated with a short pause)
 - Student Learning Profile: {student_profile_summary}
-- Optional pacing hint (spoken script summary): {narration_excerpt}
+- FULL Spoken Script (Narration): {narration_excerpt}
 - Optional extra context from the user/teacher: {extra_context}
 
 REQUIREMENTS:
 1. Create a complete Manim scene script for grade {grade_level}
 2. Use only Manim Community Edition v0.18+ APIs
 3. The script must be syntactically correct Python
-4. For longer videos ({target_duration_minutes} min target), you MUST add enough segments, examples, and self.wait() / run_time so the animation is not over in a few seconds
+4. IMPORTANT: The video MUST be paced to match the narration! Use long self.wait() calls (e.g., self.wait(10), self.wait(20), self.wait(30)) while the teacher is speaking to ensure the video doesn't end prematurely.
 5. Use simple vocabulary for lower grades, more advanced for higher grades
 6. Include worked examples where relevant
 
 MANIM SCRIPT REQUIREMENTS:
+- Break this explanation into 4-6 visual scenes using python comments. For each scene comment, provide: 1. The specific text/equations to show. 2. The animation type (e.g., Write, Transform). 3. The estimated reading time in seconds.
 - Extend the Scene class (class name must be ExplanationScene)
 - Include a title card opening
 - Divide the lesson into {section_count} clear segments (intro, concepts, example(s), summary)
-- Use MathTex for mathematical notation where appropriate; Text for plain language
+- Use Text for all text and math. CRITICAL: Do NOT use MathTex or Tex under any circumstances! The environment does not support LaTeX.
 - Use Write() for text animations and Create() for shapes; FadeOut to transition
-- Set self.wait() and animation run_time so total scene length aims toward the target minutes (e.g. multiple 15-40s segments, not 2s total)
-- End with a short recap
-- Use readable colors (e.g. WHITE, YELLOW, BLUE, GREEN on dark background)
+- Set self.wait() generously to keep the screen active while the long narration plays. The narration is {target_duration_minutes} minutes long, so you MUST pad the script with self.wait() to match.
+- CRITICAL: Use only standard Manim colors (WHITE, BLACK, RED, BLUE, GREEN, YELLOW, PURPLE, ORANGE, PINK, TEAL, MAROON). Do NOT use colors like BROWN or custom hex codes.
+- CRITICAL: Do NOT call `.rotate()`, `.scale()`, or `.normalize()` on direction vectors (like `UR`, `UP`) or any NumPy arrays (like those returned by `get_start()`, `get_end()`, or `get_vector()`). NumPy arrays do NOT have these methods. Use `manim.utils.space_ops.normalize(vector)` or `(vector / np.linalg.norm(vector))` instead.
+- CRITICAL: Keep geometry simple to avoid API crashes (e.g., avoid `RightAngle` unless you pass two valid `Line` objects). Rely primarily on `Text`.
+- CRITICAL: If you use the `random` library (e.g. for `random.uniform`), you MUST include `import random` at the very top of the script. Otherwise, do not use it.
+- CRITICAL: Never use `.to_center()` or `.to_origin()`. These methods do not exist. Mobjects are centered by default; if you need to center one explicitly, use `.move_to(ORIGIN)`.
+- CRITICAL: Never use the `alignment_point` argument in `.move_to()`. If you need to align by an edge, use `aligned_edge=UP/DOWN/LEFT/RIGHT`.
 
 RESPONSE FORMAT:
 Return ONLY the Python code for the Manim scene, no explanations or markdown.
@@ -106,15 +111,39 @@ from manim import *
 
 class ExplanationScene(Scene):
     def construct(self):
-        # Title card
+        # Scene 1: Title Card
+        # Text/Equations: "{topic}"
+        # Animation: Write
+        # Estimated reading time: 10 seconds
         title = Text("{topic}", font_size=48, color=BLUE)
         self.play(Write(title))
-        self.wait(2)
+        self.wait(10)
         self.play(FadeOut(title))
         
-        # Main content scenes...
-        # Include worked examples...
-        # Summary scene...
+        # Scene 2: Concept Breakdown
+        # Text/Equations: Visualizing the core idea
+        # Animation: Multiple Write and Create calls to build the idea
+        # Estimated reading time: 45 seconds
+        concept_title = Text("How it Works", font_size=40, color=YELLOW).to_edge(UP)
+        self.play(Write(concept_title))
+        
+        step1 = Text("1. First part of the process", font_size=32).shift(UP*1)
+        self.play(Write(step1))
+        self.wait(10) # Pacing for first part of narration
+        
+        step2 = Text("2. Second part with a formula: E = mc^2", font_size=32)
+        step2.next_to(step1, DOWN)
+        self.play(Write(step2))
+        self.wait(15) # Pacing for second part
+        
+        step3 = Text("3. Final conclusion", font_size=32).shift(DOWN*1)
+        self.play(Write(step3))
+        self.wait(20) # Pacing for final part
+        
+        self.play(FadeOut(concept_title, step1, step2, step3))
+        
+        # [GENERATE MORE SCENES FOR EXAMPLES AND DETAILED VISUALS HERE]
+        # [CRITICAL: MATCH THE PACE OF THE NARRATION WITH VISUALS, NOT JUST STATIC WAITS]
 ```
 
 Generate the Manim script for topic: {topic} with approximate length target {target_duration_minutes} minutes."""
@@ -148,7 +177,7 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
             logger.info("Starting video generation for topic: %s (target ~%s min, tts=%s)", topic, tmin, enable_tts)
 
             narration_text = ""
-            if enable_tts and self.gemini_client:
+            if self.gemini_client:
                 narration_text = await generate_narration_text(
                     self.gemini_client,
                     self.model_name,
@@ -159,7 +188,7 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
                     extra_context=extra_context,
                 )
             if (narration_text or "").strip():
-                excerpt = (narration_text[:800] + "…") if len(narration_text) > 800 else narration_text
+                excerpt = narration_text
             else:
                 excerpt = f"Narration disabled or unavailable. Teach {topic} for grade {grade_level} with depth suitable for a ~{tmin} minute lesson."
             manim_script = await self._generate_manim_script(
@@ -193,7 +222,7 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
             ):
                 audio_path = vpath.parent / f"{vpath.stem}_narration.mp3"
                 out_path = vpath.parent / f"{vpath.stem}_with_audio.mp4"
-                t_ok, tts_engine = await synthesize_speech_to_file(narration_text, language, audio_path)
+                t_ok, tts_engine, vtt_path = await synthesize_speech_to_file(narration_text, language, audio_path)
                 if t_ok and mux_video_audio(vpath, audio_path, out_path):
                     has_audio = True
                     try:
@@ -208,6 +237,8 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
                         pass
                     video_name = out_path.name
                     video_info["video_url"] = f"/videos/{video_name}"
+                    if vtt_path and vtt_path.is_file():
+                        video_info["vtt_url"] = f"/videos/{vtt_path.name}"
                     if video_info.get("duration_seconds") is None or video_info.get("duration_seconds", 0) < 0.1:
                         video_info["duration_seconds"] = await self._get_video_duration(out_path)
                     if video_info.get("file_size_mb") is not None and out_path.is_file():
@@ -286,18 +317,47 @@ Generate the Manim script for topic: {topic} with approximate length target {tar
             # Remove markdown code blocks
             import re
             
+            script = ""
             # Look for python code blocks
             python_match = re.search(r'```python\s*(.*?)\s*```', response_text, re.DOTALL)
             if python_match:
-                return python_match.group(1)
+                script = python_match.group(1)
+            else:
+                # Look for any code blocks
+                code_match = re.search(r'```\s*(.*?)\s*```', response_text, re.DOTALL)
+                if code_match:
+                    script = code_match.group(1)
+                else:
+                    # If no code blocks, assume entire response is code
+                    script = response_text.strip()
             
-            # Look for any code blocks
-            code_match = re.search(r'```\s*(.*?)\s*```', response_text, re.DOTALL)
-            if code_match:
-                return code_match.group(1)
+            # Final cleanup: ensure common imports if used but missing
+            if "random." in script and "import random" not in script:
+                script = "import random\n" + script
+            if ("np." in script or "numpy." in script) and "import numpy" not in script:
+                script = "import numpy as np\n" + script
+                
+            # Fix common hallucinations
+            script = script.replace(".to_center()", ".move_to(ORIGIN)")
+            script = script.replace(".to_origin()", ".move_to(ORIGIN)")
             
-            # If no code blocks, assume entire response is code
-            return response_text.strip()
+            # Fix version confusion: alignment_point is not a valid argument for move_to in Manim Community
+            import re
+            script = re.sub(r'alignment_point\s*=\s*[^,)]+', '', script)
+            # Clean up potential double commas or commas before closing parenthesis
+            script = script.replace(", ,", ",")
+            script = script.replace(",)", ")")
+            script = script.replace("(,", "(")
+            
+            # Automatically fix `.normalize()` on objects that might be numpy arrays
+            # Covers variable.normalize()
+            script = re.sub(r'([a-zA-Z0-9_]+)\.normalize\(\)', r'(\1 / np.linalg.norm(\1))', script)
+            # Covers (expression).normalize()
+            script = re.sub(r'(\([^)]+\))\.normalize\(\)', r'(\1 / np.linalg.norm(\1))', script)
+            # Covers variable.get_vector().normalize() or similar method chaining
+            script = re.sub(r'([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\([^)]*\))\.normalize\(\)', r'(\1 / np.linalg.norm(\1))', script)
+                
+            return script
             
         except Exception as e:
             logger.error(f"Error extracting Python code: {str(e)}")
@@ -439,7 +499,8 @@ class ExplanationScene(Scene):
                 "-o", f"{video_id}.mp4",
                 "--media_dir", str(output_dir),
                 "-v", "WARNING",  # Reduce verbosity
-                "--disable_caching"
+                "--disable_caching",
+                "-ql"             # Low Quality flag for faster rendering
             ]
             
             # Record start time
@@ -506,6 +567,7 @@ class ExplanationScene(Scene):
                 "has_audio": False,
                 "tts_engine": None,
                 "narration_preview": None,
+                "vtt_url": None,
             }
             
         except Exception as e:
@@ -578,6 +640,7 @@ class ExplanationScene(Scene):
             has_audio=False,
             tts_engine=None,
             narration_preview=None,
+            vtt_url=None,
         )
     
     def is_healthy(self) -> bool:

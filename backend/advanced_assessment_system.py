@@ -165,7 +165,7 @@ class AdvancedAssessmentSystem:
             
             api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
             if api_key:
-                self.gemini_client = genai.Client(api_key=api_key)
+                self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
                 logger.info("Assessment System: Gemini client initialized")
             
             # Import Phase 3 engines if available

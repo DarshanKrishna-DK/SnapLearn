@@ -96,7 +96,7 @@ class AdaptiveDifficultyEngine:
                 logger.error("Gemini API key not found for adaptive difficulty")
                 return
             
-            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
             logger.info("Adaptive difficulty: Gemini client initialized")
             
         except ImportError:

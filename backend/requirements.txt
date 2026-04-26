@@ -32,7 +32,7 @@ manim==0.18.1
 numpy==2.2.1
 matplotlib==3.10.0
 # TTS for video narration (edge-tts first, gTTS fallback)
-edge-tts==6.1.9
+edge-tts==7.2.8
 gTTS==2.5.0
 
 # --- Optional vision extras (image preprocessing) ---

@@ -131,7 +131,7 @@ const MarketingHome = () => {
             </button>
             <button
               type="button"
-              onClick={go('/test')}
+              onClick={go('/quiz')}
               className="sl-pixel-3d--outline sl-pixel-3d !text-[0.48rem] sm:!text-[0.55rem]"
             >
               PRACTICE TEST
@@ -274,7 +274,7 @@ const MarketingHome = () => {
               </p>
               <button
                 type="button"
-                onClick={go('/test')}
+                onClick={go('/quiz')}
                 className="sl-pixel-3d mt-4 w-fit !text-[0.45rem] sm:!text-[0.5rem]"
               >
                 OPEN
@@ -370,7 +370,7 @@ const MarketingHome = () => {
             </button>
             <button
               type="button"
-              onClick={go('/test')}
+              onClick={go('/quiz')}
               className="sl-pixel-3d--outline sl-pixel-3d !text-[0.45rem] sm:!text-[0.5rem]"
             >
               SKIP: TEST

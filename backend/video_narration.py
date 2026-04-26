@@ -39,14 +39,21 @@ async def generate_narration_text(
     words = target_word_count(target_minutes)
     extra = f"\nAdditional context from the teacher or student:\n{extra_context}\n" if (extra_context or "").strip() else ""
     prompt = f"""Write a single continuous lesson narration script to be read aloud (text-to-speech) for students.
+Act as an expert teacher and Subject Matter Expert. Do NOT simply repeat the prompt or context; deeply explain the core concepts, provide rich analogies, and ensure the content is highly relevant and educational.
 Topic: {topic}
 Grade: {grade_level}
 Language code: {language} (write the script entirely in this language)
-Target spoken length: about {target_minutes:.1f} minutes, roughly {words} words.
+Target spoken length: about {target_minutes:.1f} minutes. YOU MUST WRITE AT LEAST {words} WORDS. This is a strict requirement for the pacing of the video.
+To reach {words} words, you MUST structure your lesson as follows:
+1. Detailed introduction and hook
+2. Deep dive into the first core concept with multiple examples
+3. Deep dive into the second core concept with real-world analogies
+4. A step-by-step walkthrough of a complex problem or scenario
+5. Comprehensive summary and recap
+Expand on every point significantly to ensure the script is long enough.
 Rules:
 - Plain sentences only. No sound effects, no stage directions, no bullet lists.
 - Short paragraphs separated by newlines. No emojis.
-- Cover definitions, one worked example if relevant, and a short recap.
 {extra}
 Output only the narration text, no title line."""
 
@@ -101,9 +108,10 @@ def _gtts_lang(code: str) -> str:
     return m.get(c, "en")
 
 
-async def _edge_tts_save(text: str, language: str, out_path: Path) -> bool:
+async def _edge_tts_save(text: str, language: str, out_path: Path) -> Tuple[bool, Optional[Path]]:
     try:
         import edge_tts
+        from edge_tts.submaker import SubMaker
 
         # Map simple codes to a voice; override with EDGE_TTS_VOICE in env
         import os
@@ -122,11 +130,31 @@ async def _edge_tts_save(text: str, language: str, out_path: Path) -> bool:
             else:
                 voice = "en-US-AriaNeural"
         com = edge_tts.Communicate(text, voice)
-        await com.save(str(out_path))
-        return out_path.is_file() and out_path.stat().st_size > 0
+        submaker = SubMaker()
+
+        with open(out_path, "wb") as f:
+            async for chunk in com.stream():
+                if chunk["type"] == "audio":
+                    f.write(chunk["data"])
+                elif chunk["type"] in ("WordBoundary", "SentenceBoundary"):
+                    submaker.feed(chunk)
+
+        # edge-tts SubMaker generates SRT, so we convert it to WebVTT
+        vtt_path = out_path.with_suffix(".vtt")
+        srt_text = submaker.get_srt()
+        vtt_lines = ['WEBVTT', '']
+        for line in srt_text.strip().split('\n'):
+            if ' --> ' in line:
+                line = line.replace(',', '.')
+            vtt_lines.append(line)
+        
+        with open(vtt_path, "w", encoding="utf-8") as f:
+            f.write('\n'.join(vtt_lines) + '\n')
+
+        return out_path.is_file() and out_path.stat().st_size > 0, vtt_path
     except Exception as e:
         logger.debug("edge-tts failed: %s", e)
-        return False
+        return False, None
 
 
 def _gtts_save_sync(text: str, language: str, out_path: Path) -> bool:
@@ -164,24 +192,24 @@ async def synthesize_speech_to_file(
     text: str,
     language: str,
     out_mp3: Path,
-) -> Tuple[bool, str]:
+) -> Tuple[bool, str, Optional[Path]]:
     """
-    Returns (ok, engine_name).
+    Returns (ok, engine_name, vtt_path).
     Tries edge-tts on full text; on failure chunks + gTTS, then merge.
     """
     out_mp3.parent.mkdir(parents=True, exist_ok=True)
     clean = re.sub(r"\s+", " ", (text or "").strip())
     if not clean:
-        return False, "none"
+        return False, "none", None
 
-    ok = await _edge_tts_save(clean, language, out_mp3)
+    ok, vtt_path = await _edge_tts_save(clean, language, out_mp3)
     if ok:
-        return True, "edge-tts"
+        return True, "edge-tts", vtt_path
 
     chunks = _split_tts_chunks(clean, 3000)
     if len(chunks) == 1:
         o = await asyncio.to_thread(_gtts_save_sync, chunks[0], language, out_mp3)
-        return (o, "gtts" if o else "none")
+        return (o, "gtts" if o else "none", None)
 
     temp_dir = out_mp3.parent / f"_tts_parts_{out_mp3.stem}"
     temp_dir.mkdir(exist_ok=True)
@@ -192,16 +220,16 @@ async def synthesize_speech_to_file(
         if o:
             part_paths.append(p)
     if not part_paths:
-        return False, "none"
+        return False, "none", None
     if len(part_paths) == 1:
         shutil.copy2(part_paths[0], out_mp3)
-        return True, "gtts"
+        return True, "gtts", None
     ok_m = await _concat_audio_mp3(part_paths, out_mp3)
     try:
         shutil.rmtree(temp_dir, ignore_errors=True)
     except OSError:
         pass
-    return (ok_m, "gtts" if ok_m else "none")
+    return (ok_m, "gtts" if ok_m else "none", None)
 
 
 def ffmpeg_invoked() -> bool:
@@ -237,7 +265,6 @@ def mux_video_audio(
         "0:v:0",
         "-map",
         "1:a:0",
-        "-shortest",
         str(out_mp4),
     ]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)

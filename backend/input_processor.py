@@ -44,7 +44,7 @@ class InputProcessor:
                 logger.error("Gemini API key not found for input processing")
                 return
             
-            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
             logger.info("Input processor: Gemini client initialized")
             
         except ImportError:

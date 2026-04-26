@@ -77,7 +77,7 @@ class AssessmentEngine:
                 logger.error("Gemini API key not found for assessment engine")
                 return
             
-            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
             logger.info("Assessment engine: Gemini client initialized")
             
         except ImportError:

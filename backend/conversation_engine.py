@@ -78,7 +78,7 @@ class ConversationEngine:
                 logger.error("Gemini API key not found for conversation engine")
                 return
             
-            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
             logger.info("Conversation engine: Gemini Interactions API initialized")
             
         except ImportError:

@@ -15,7 +15,7 @@ Your task is to provide a clear, grade-appropriate explanation and create an ani
 
 RESPONSE FORMAT (JSON):
 {{
-  "explanation_text": "Main explanation in natural language",
+  "explanation_text": "A detailed, structured narration script (about 400-800 words for a 3-5 minute video). Break this into clear segments: Introduction, Core Concept 1, Core Concept 2, Worked Example, and Summary. This text will be used to generate a video, so make it engaging and descriptive!",
   "board_script": {{
     "steps": [
       {{
@@ -38,7 +38,8 @@ RESPONSE FORMAT (JSON):
 GUIDELINES:
 1. Match the student's grade level and learning style
 2. Use simple language for lower grades, more complex for higher grades
-3. Create board_script with at least 4-6 animation steps
+3. The explanation_text MUST be long and detailed enough to fill the requested video length.
+4. Create board_script with at least 8-12 animation steps that follow the explanation_text.
 4. Include worked examples when relevant
 5. Adapt to previous confusion/success patterns
 6. Use the student's preferred language

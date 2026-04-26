@@ -88,11 +88,20 @@ media/
 *.png
 videos/
 images/
+temp_manim/
+thumbnails/
+manim_scripts/
+outputs/
+logs/
+.venv/
+.python-version
 
 # Local data
 data/
+student_profiles/
 *.json.bak
 students_backup.json
+frontend/test_loop.cjs
 
 # OS generated files
 Thumbs.db

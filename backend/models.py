@@ -160,6 +160,7 @@ class VideoResponse(BaseModel):
         None,
         description="Short preview of the narration that was or would be spoken",
     )
+    vtt_url: Optional[str] = Field(None, description="URL to the generated WebVTT subtitles file")
 
 class AssessmentResponse(BaseModel):
     """Response model for answer assessment"""
@@ -423,6 +424,7 @@ class EnhancedVideoResponse(BaseModel):
     manim_script: str = Field(..., description="Generated Manim script")
     generation_time_seconds: float = Field(..., description="Time taken to generate video")
     timestamp: Optional[datetime] = Field(default_factory=datetime.now, description="Creation timestamp")
+    vtt_url: Optional[str] = Field(None, description="URL to the generated WebVTT subtitles file")
     
     # Phase 4 Enhancements
     video_variants: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Alternative quality/format versions")

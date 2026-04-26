@@ -653,8 +653,19 @@ const EnhancedVideoPage: React.FC<EnhancedVideoPageProps> = ({
                         className="w-full h-64 object-cover"
                         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                         onEnded={handleVideoEnded}
+                        crossOrigin="anonymous"
                         controls
-                      />
+                      >
+                        {currentVideo.vtt_url && (
+                          <track
+                            src={currentVideo.vtt_url}
+                            kind="subtitles"
+                            srcLang="en"
+                            label="English"
+                            default
+                          />
+                        )}
+                      </video>
                     </div>
 
                     {/* Video Info */}

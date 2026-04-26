@@ -18,6 +18,8 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
+        timeout: 300000,
+        proxyTimeout: 300000,
       },
       '/health': {
         target: 'http://localhost:8000',
@@ -39,12 +41,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      '/docs': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/redoc': {
+      '/openapi.json': {
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,

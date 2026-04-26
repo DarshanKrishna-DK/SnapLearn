@@ -47,7 +47,7 @@ class TutorEngine:
                 return
             
             # Initialize client
-            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_client = genai.Client(api_key=api_key, http_options={'headers': {'Referer': 'http://localhost'}})
             
             logger.info("Gemini API client initialized successfully")
             

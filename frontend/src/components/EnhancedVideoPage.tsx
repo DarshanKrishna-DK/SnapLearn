@@ -277,7 +277,7 @@ const EnhancedVideoPage: React.FC<EnhancedVideoPageProps> = ({
       } catch (error) {
         console.error('Error polling batch status:', error);
       }
-    }, 5000); // Poll every 5 seconds
+    }, 15000); // Poll every 15 seconds
 
     // Stop polling after 30 minutes
     setTimeout(() => clearInterval(pollInterval), 30 * 60 * 1000);

@@ -296,7 +296,7 @@ const AdvancedTutorPage: React.FC<AdvancedTutorPageProps> = ({
       return {
         ...prev,
         current_difficulty: response.response.difficulty_level,
-        engagement_level: Math.max(0, Math.min(1, prev.engagement_level + (responseTime < 5000 ? 0.1 : -0.05))),
+        engagement_level: Math.max(0, Math.min(1, prev.engagement_level + (responseTime < 15000 ? 0.1 : -0.05))),
         adaptations_made: prev.adaptations_made + (difficultyChanged ? 1 : 0)
       };
     });

@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // Components
 import Navbar from './components/Navbar';
+import MarketingHome from './pages/MarketingHome.jsx';
+import AppPage from './pages/AppPage';
+import Documentation from './pages/Documentation';
+import SDKPage from './pages/SDKPage';
 import TutorPage from './pages/TutorPage';
 import VideoPage from './pages/VideoPage';
+import QuizPage from './pages/QuizPage';
 import ProfilePage from './pages/ProfilePage';
 import SDKDemoPage from './pages/SDKDemoPage';
-import LoadingSpinner from './components/ui/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Hooks and utilities
@@ -32,7 +36,7 @@ function App() {
     currentStudent: 'demo-student',
     gradeLevel: '4',
     language: 'en',
-    isServerConnected: false,
+    isServerConnected: true,
     isCheckingConnection: true,
   });
 
@@ -50,7 +54,7 @@ function App() {
       try {
         setAppState(prev => ({ ...prev, isCheckingConnection: true }));
         
-        const isConnected = await api.healthCheck(5000);
+        const isConnected = await api.healthCheck();
         
         setAppState(prev => ({
           ...prev,
@@ -74,15 +78,41 @@ function App() {
     checkConnection();
   }, []);
 
-  // Initialize app state from saved settings
+  // Initialize app state from saved settings and check for grade or language from landing page
   useEffect(() => {
+    const selectedGrade = localStorage.getItem('selectedGrade');
+    const selectedLanguage = localStorage.getItem('selectedLanguage');
+
+    const gradeFromLanding =
+      selectedGrade && ['K', '1', '2', '3', '4', '5', '6', '7', '8'].includes(selectedGrade)
+        ? (selectedGrade as GradeLevel)
+        : null;
+    const langFromLanding =
+      selectedLanguage === 'en' || selectedLanguage === 'kn'
+        ? (selectedLanguage as LanguageCode)
+        : null;
+
     setAppState(prev => ({
       ...prev,
       currentStudent: savedSettings.studentId,
-      gradeLevel: savedSettings.gradeLevel,
-      language: savedSettings.language,
+      gradeLevel: gradeFromLanding ?? savedSettings.gradeLevel,
+      language: langFromLanding ?? savedSettings.language,
     }));
-  }, [savedSettings]);
+
+    if (gradeFromLanding) {
+      if (gradeFromLanding !== savedSettings.gradeLevel) {
+        setSavedSettings(prev => ({ ...prev, gradeLevel: gradeFromLanding }));
+      }
+      localStorage.removeItem('selectedGrade');
+    }
+
+    if (langFromLanding) {
+      if (langFromLanding !== savedSettings.language) {
+        setSavedSettings(prev => ({ ...prev, language: langFromLanding }));
+      }
+      localStorage.removeItem('selectedLanguage');
+    }
+  }, [savedSettings, setSavedSettings]);
 
   // Update student settings
   const updateSettings = (updates: Partial<typeof savedSettings>) => {
@@ -102,7 +132,7 @@ function App() {
     setAppState(prev => ({ ...prev, isCheckingConnection: true }));
     
     try {
-      const isConnected = await api.healthCheck(10000);
+      const isConnected = await api.healthCheck();
       
       setAppState(prev => ({
         ...prev,
@@ -118,76 +148,78 @@ function App() {
     }
   };
 
-  // Loading screen during connection check
-  if (appState.isCheckingConnection) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Connecting to SnapLearn AI...</p>
-        </div>
-      </div>
-    );
-  }
+  // Component to conditionally show navbar
+  const AppContent = () => {
+    const location = useLocation();
+    const isFullBleed = ['/', '/docs', '/sdk', '/app'].includes(location.pathname);
 
-  // Connection error screen
-  if (!appState.isServerConnected) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md mx-auto text-center p-8">
-          <div className="mb-6">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Backend Server Not Available
-            </h2>
-            <p className="text-gray-600 mb-6">
-              The SnapLearn AI backend server is not responding. Please make sure the FastAPI server is running on localhost:8000.
-            </p>
-            <div className="bg-gray-100 rounded-lg p-4 text-left text-sm font-mono mb-6">
-              <p className="text-gray-800">To start the backend server:</p>
-              <p className="text-blue-600 mt-2">cd backend</p>
-              <p className="text-blue-600">python main.py</p>
-            </div>
+      <div className={isFullBleed ? "min-h-screen" : "min-h-screen bg-[var(--sl-cream)]"}>
+        {appState.isCheckingConnection && (
+          <div
+            className="pointer-events-none fixed top-0 left-0 right-0 z-[300] h-0.5 bg-[#3d0a18]"
+            aria-hidden
+          >
+            <div className="h-full w-2/5 animate-pulse bg-[#c49a5c]/90" />
+          </div>
+        )}
+        {!appState.isServerConnected && !appState.isCheckingConnection && (
+          <div className="sticky top-0 z-[250] border-b border-amber-200 bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
+            <span className="font-medium">API offline. </span>
+            Navigation still works. Start the backend (port 8000) and use Vite so /api proxies to it.{' '}
             <button
+              type="button"
               onClick={retryConnection}
-              disabled={appState.isCheckingConnection}
-              className="btn-primary"
+              className="ml-2 font-semibold text-amber-900 underline decoration-amber-800 hover:text-amber-950"
             >
-              {appState.isCheckingConnection ? (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span className="ml-2">Connecting...</span>
-                </>
-              ) : (
-                'Try Again'
-              )}
+              Retry
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <ErrorBoundary>
-      <Router>
-        <div className="min-h-screen bg-gray-50">
+        )}
+        {!isFullBleed && (
           <Navbar 
             currentStudent={appState.currentStudent}
             gradeLevel={appState.gradeLevel}
             language={appState.language}
             onSettingsChange={updateSettings}
           />
-          
-          <main className="container mx-auto px-4 py-8">
+        )}
+        
+        <main className={isFullBleed ? "" : "container mx-auto px-4 py-8"}>
             <Routes>
-              {/* Main tutoring interface */}
+              {/* Landing page - Product intro */}
               <Route 
                 path="/" 
+                element={<MarketingHome />} 
+              />
+              
+              {/* Documentation page */}
+              <Route 
+                path="/docs" 
+                element={<Documentation />} 
+              />
+              
+              {/* SDK page */}
+              <Route 
+                path="/sdk" 
+                element={<SDKPage />} 
+              />
+              
+              {/* Main SnapLearn App - Try SnapLearn functionality */}
+              <Route 
+                path="/app" 
+                element={
+                  <AppPage 
+                    studentId={appState.currentStudent}
+                    gradeLevel={appState.gradeLevel}
+                    language={appState.language}
+                  />
+                } 
+              />
+              
+              {/* Individual feature pages */}
+              <Route 
+                path="/tutor" 
                 element={
                   <TutorPage 
                     studentId={appState.currentStudent}
@@ -197,7 +229,6 @@ function App() {
                 } 
               />
               
-              {/* Video generation page */}
               <Route 
                 path="/videos" 
                 element={
@@ -209,7 +240,26 @@ function App() {
                 } 
               />
               
-              {/* Student profile page */}
+              <Route 
+                path="/quiz" 
+                element={
+                  <QuizPage 
+                    studentId={appState.currentStudent}
+                    gradeLevel={appState.gradeLevel}
+                  />
+                } 
+              />
+
+              <Route
+                path="/test"
+                element={
+                  <QuizPage
+                    studentId={appState.currentStudent}
+                    gradeLevel={appState.gradeLevel}
+                  />
+                }
+              />
+              
               <Route 
                 path="/profile" 
                 element={
@@ -220,7 +270,7 @@ function App() {
                 } 
               />
               
-              {/* SDK Demo page */}
+              {/* Legacy SDK Demo page */}
               <Route 
                 path="/sdk-demo" 
                 element={<SDKDemoPage />} 
@@ -229,30 +279,37 @@ function App() {
               {/* Redirect unknown paths to home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </main>
-          
-          {/* Toast notifications */}
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
+        </main>
+        
+        {/* Toast notifications */}
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+            success: {
               style: {
-                background: '#363636',
-                color: '#fff',
+                background: '#22c55e',
               },
-              success: {
-                style: {
-                  background: '#22c55e',
-                },
+            },
+            error: {
+              style: {
+                background: '#ef4444',
               },
-              error: {
-                style: {
-                  background: '#ef4444',
-                },
-              },
-            }}
-          />
-        </div>
+            },
+          }}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <ErrorBoundary>
+      <Router>
+        <AppContent />
       </Router>
     </ErrorBoundary>
   );

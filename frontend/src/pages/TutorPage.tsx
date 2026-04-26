@@ -5,6 +5,8 @@ import { Send, RotateCcw, BookOpen, Lightbulb, Type, Image, Mic, Zap, ArrowRight
 // Components
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import AnimatedBlackboard from '@/components/AnimatedBlackboard';
+import ScientificBlackboard from '@/components/ScientificBlackboard';
+import FormattedExplanation from '@/components/FormattedExplanation';
 import QuestionInput from '@/components/QuestionInput';
 import ImageUpload from '@/components/ImageUpload';
 import VoiceInput from '@/components/VoiceInput';
@@ -13,6 +15,7 @@ import EnhancedVideoPage from '@/components/EnhancedVideoPage';
 
 // Utils and types
 import { apiClient, handleAPIError } from '@/utils/api';
+import { processBoardScript } from '@/utils/boardScriptProcessor';
 import { 
   ExplanationResponse, 
   GradeLevel, 
@@ -45,6 +48,9 @@ const TutorPage: React.FC<TutorPageProps> = ({
   
   // Phase 4: Video mode toggle
   const [isVideoMode, setIsVideoMode] = useState(false);
+  
+  // Scientific blackboard mode toggle
+  const [useScientificBoard, setUseScientificBoard] = useState(true);
 
   // Handle question submission
   const handleQuestionSubmit = useCallback(async (question: string) => {
@@ -68,7 +74,13 @@ const TutorPage: React.FC<TutorPageProps> = ({
 
       const response = await apiClient.explain(request);
       
-      setExplanation(response);
+      // Process board script for better scientific presentation
+      const processedResponse = {
+        ...response,
+        board_script: processBoardScript(response.board_script)
+      };
+      
+      setExplanation(processedResponse);
       toast.success('Explanation generated successfully!');
       
       // Show follow-up questions after animation completes
@@ -440,16 +452,36 @@ const TutorPage: React.FC<TutorPageProps> = ({
       {(explanation || isGenerating) && (
         <div className="card p-0 overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {isGenerating ? 'Preparing explanation...' : currentQuestion}
-            </h2>
-            {explanation && (
-              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                <span>Difficulty: {explanation.difficulty_level}</span>
-                <span>•</span>
-                <span>Confidence: {Math.round(explanation.confidence_score * 100)}%</span>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {isGenerating ? 'Preparing explanation...' : currentQuestion}
+                </h2>
+                {explanation && (
+                  <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                    <span>Difficulty: {explanation.difficulty_level}</span>
+                    <span>•</span>
+                    <span>Confidence: {Math.round(explanation.confidence_score * 100)}%</span>
+                  </div>
+                )}
               </div>
-            )}
+              
+              {!isGenerating && (
+                <div className="flex items-center space-x-2 text-sm">
+                  <label className="text-gray-600">Blackboard Style:</label>
+                  <button
+                    onClick={() => setUseScientificBoard(!useScientificBoard)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                      useScientificBoard 
+                        ? 'bg-green-100 text-green-800 border-green-300' 
+                        : 'bg-blue-100 text-blue-800 border-blue-300'
+                    } border`}
+                  >
+                    {useScientificBoard ? '🧪 Scientific' : '✨ Classic'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           
           {isGenerating ? (
@@ -462,11 +494,19 @@ const TutorPage: React.FC<TutorPageProps> = ({
               </div>
             </div>
           ) : explanation ? (
-            <AnimatedBlackboard 
-              script={explanation.board_script}
-              isPlaying={true}
-              onAnimationComplete={() => console.log('Animation completed')}
-            />
+            useScientificBoard ? (
+              <ScientificBlackboard 
+                script={explanation.board_script}
+                isPlaying={true}
+                onAnimationComplete={() => console.log('Scientific animation completed')}
+              />
+            ) : (
+              <AnimatedBlackboard 
+                script={explanation.board_script}
+                isPlaying={true}
+                onAnimationComplete={() => console.log('Classic animation completed')}
+              />
+            )
           ) : null}
         </div>
       )}
@@ -479,11 +519,10 @@ const TutorPage: React.FC<TutorPageProps> = ({
             <h3 className="text-lg font-semibold text-gray-900 mb-3">
               Detailed Explanation
             </h3>
-            <div className="prose prose-sm max-w-none">
-              <p className="text-gray-700 leading-relaxed">
-                {explanation.explanation_text}
-              </p>
-            </div>
+            <FormattedExplanation 
+              explanation={explanation.explanation_text}
+              className="max-w-none"
+            />
           </div>
 
           {/* Key Concepts */}

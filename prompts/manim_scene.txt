@@ -4,26 +4,29 @@ STUDENT CONTEXT:
 - Grade Level: {grade_level}
 - Topic: {topic}
 - Language: {language}
+- Target on-screen video length: about {target_duration_minutes} minutes (this is a goal; use run_time and self.wait to pace)
+- Number of main segments to teach: {section_count} (each segment should be clearly separated with a short pause)
 - Student Learning Profile: {student_profile_summary}
+- Optional pacing hint (spoken script summary): {narration_excerpt}
+- Optional extra context from the user/teacher: {extra_context}
 
 REQUIREMENTS:
 1. Create a complete Manim scene script for grade {grade_level}
 2. Use only Manim Community Edition v0.18+ APIs
 3. The script must be syntactically correct Python
-4. Include engaging animations appropriate for the grade level
+4. For longer videos ({target_duration_minutes} min target), you MUST add enough segments, examples, and self.wait() / run_time so the animation is not over in a few seconds
 5. Use simple vocabulary for lower grades, more advanced for higher grades
 6. Include worked examples where relevant
 
 MANIM SCRIPT REQUIREMENTS:
-- Extend the Scene class
-- Include title card opening
-- Divide explanation into 4-6 distinct animation scenes
-- Use MathTex for mathematical notation
-- Use Write() for text animations and Create() for shapes
-- Include at least one step-by-step worked example
-- Set appropriate self.wait() between scenes
-- End with a summary slide
-- Use colors that are engaging but not overwhelming
+- Extend the Scene class (class name must be ExplanationScene)
+- Include a title card opening
+- Divide the lesson into {section_count} clear segments (intro, concepts, example(s), summary)
+- Use MathTex for mathematical notation where appropriate; Text for plain language
+- Use Write() for text animations and Create() for shapes; FadeOut to transition
+- Set self.wait() and animation run_time so total scene length aims toward the target minutes (e.g. multiple 15-40s segments, not 2s total)
+- End with a short recap
+- Use readable colors (e.g. WHITE, YELLOW, BLUE, GREEN on dark background)
 
 RESPONSE FORMAT:
 Return ONLY the Python code for the Manim scene, no explanations or markdown.
@@ -45,4 +48,4 @@ class ExplanationScene(Scene):
         # Summary scene...
 ```
 
-Generate the Manim script for topic: {topic}
+Generate the Manim script for topic: {topic} with approximate length target {target_duration_minutes} minutes.

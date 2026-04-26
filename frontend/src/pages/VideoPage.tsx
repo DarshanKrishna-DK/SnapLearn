@@ -20,7 +20,9 @@ const VideoPage: React.FC<VideoPageProps> = ({
   const [topic, setTopic] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<VideoResponse | null>(null);
-  const [generationProgress, setGenerationProgress] = useState(0);
+  const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
+  const [enableTts, setEnableTts] = useState(true);
+  const [extraContext, setExtraContext] = useState('');
 
   const handleGenerateVideo = async () => {
     if (!topic.trim()) {
@@ -30,18 +32,6 @@ const VideoPage: React.FC<VideoPageProps> = ({
 
     setIsGenerating(true);
     setGeneratedVideo(null);
-    setGenerationProgress(0);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setGenerationProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          return prev;
-        }
-        return prev + Math.random() * 10;
-      });
-    }, 1000);
 
     try {
       const response = await apiClient.generateVideo({
@@ -49,18 +39,23 @@ const VideoPage: React.FC<VideoPageProps> = ({
         student_id: studentId,
         grade_level: gradeLevel,
         language: language,
+        target_duration_minutes: targetDurationMinutes,
+        enable_tts: enableTts,
+        extra_context: extraContext.trim() || undefined,
       });
 
       setGeneratedVideo(response);
-      setGenerationProgress(100);
-      toast.success('Video generated successfully!');
+      toast.success(
+        response.has_audio
+          ? 'Video with narration is ready (if the server muxed audio).'
+          : 'Video generated. Enable TTS and ensure ffmpeg is installed for spoken audio.',
+      );
       
     } catch (error) {
       console.error('Error generating video:', error);
       toast.error(handleAPIError(error));
     } finally {
       setIsGenerating(false);
-      clearInterval(progressInterval);
     }
   };
 
@@ -106,8 +101,51 @@ const VideoPage: React.FC<VideoPageProps> = ({
               disabled={isGenerating}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Be specific about what you want to learn. The AI will create a detailed animated explanation.
+              Be specific about what you want to learn. The AI paces the Manim scene toward your target length and can add spoken narration.
             </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Target length (minutes): {targetDurationMinutes}
+            </label>
+            <input
+              type="range"
+              min={0.5}
+              max={15}
+              step={0.5}
+              value={targetDurationMinutes}
+              onChange={(e) => setTargetDurationMinutes(parseFloat(e.target.value))}
+              className="w-full"
+              disabled={isGenerating}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Longer targets (2-13+ minutes) ask the model for more sections and wait time. Rendering may take several minutes.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="enable-tts"
+              type="checkbox"
+              checked={enableTts}
+              onChange={(e) => setEnableTts(e.target.checked)}
+              disabled={isGenerating}
+            />
+            <label htmlFor="enable-tts" className="text-sm text-gray-700">
+              Add spoken narration (TTS) and mux with video (requires ffmpeg on the server)
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Optional context</label>
+            <textarea
+              value={extraContext}
+              onChange={(e) => setExtraContext(e.target.value)}
+              placeholder="E.g. focus on intuitive explanation, or tie to a prior lesson..."
+              className="input-primary min-h-[80px] resize-y"
+              disabled={isGenerating}
+            />
           </div>
 
           <button
@@ -137,27 +175,15 @@ const VideoPage: React.FC<VideoPageProps> = ({
             <LoadingSpinner size="md" />
             <div>
               <h3 className="font-medium text-gray-900">Generating your video</h3>
-              <p className="text-sm text-gray-600">This may take 1-3 minutes...</p>
+              <p className="text-sm text-gray-600">
+                Manim may run several minutes. Longer targets and TTS add more time. Leave this page open.
+              </p>
             </div>
           </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Progress</span>
-              <span>{Math.round(generationProgress)}%</span>
-            </div>
-            <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div 
-                className="bg-primary-600 h-full transition-all duration-1000 ease-out"
-                style={{ width: `${generationProgress}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 text-sm text-gray-600">
+          <div className="mt-2 text-sm text-gray-600">
             <div className="flex items-center space-x-2">
               <Clock className="w-4 h-4" />
-              <span>Creating Manim animation script...</span>
+              <span>Rendering (script, scene, then optional TTS and mux)...</span>
             </div>
           </div>
         </div>
@@ -170,15 +196,24 @@ const VideoPage: React.FC<VideoPageProps> = ({
             <h3 className="text-lg font-semibold text-gray-900">
               Your Video: {generatedVideo.topic}
             </h3>
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              {generatedVideo.duration_seconds && (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              {generatedVideo.duration_seconds != null && (
                 <span>{Math.round(generatedVideo.duration_seconds)}s</span>
               )}
-              {generatedVideo.file_size_mb && (
+              {generatedVideo.file_size_mb != null && (
                 <span>{generatedVideo.file_size_mb} MB</span>
+              )}
+              {generatedVideo.has_audio === true && (
+                <span>Audio: yes ({generatedVideo.tts_engine || 'mux'})</span>
+              )}
+              {generatedVideo.has_audio === false && (
+                <span>Audio: no (see server logs, ffmpeg, edge-tts / gTTS)</span>
               )}
             </div>
           </div>
+          {generatedVideo.narration_preview && (
+            <p className="text-sm text-gray-600 mb-3 line-clamp-3">{generatedVideo.narration_preview}</p>
+          )}
 
           {/* Video player */}
           <div className="video-container mb-4">

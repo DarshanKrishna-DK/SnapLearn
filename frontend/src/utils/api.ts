@@ -35,12 +35,13 @@ class SnapLearnAPIClient {
   private client: AxiosInstance;
   private baseURL: string;
 
-  constructor(baseURL = 'http://localhost:8000') {
+  /** Empty baseURL uses the Vite dev server origin so /api, /health, and media paths hit the proxy. */
+  constructor(baseURL = '') {
     this.baseURL = baseURL;
     
     this.client = axios.create({
       baseURL,
-      timeout: 60000, // 60 second timeout for video generation
+      // NO TIMEOUT - User specifically requested removal of all timeouts to fix timeout issues
       headers: {
         'Content-Type': 'application/json',
       },
@@ -91,14 +92,9 @@ class SnapLearnAPIClient {
     );
   }
 
-  // Health check
-  async healthCheck(): Promise<{
-    status: string;
-    version: string;
-    services: Record<string, boolean>;
-    timestamp: string;
-  }> {
-    const response = await this.client.get('/health');
+  // Liveness: use /api/ping (fast). /health is heavy and can exceed short client timeouts.
+  async healthCheck(): Promise<{ ok: boolean; timestamp: string }> {
+    const response = await this.client.get('/api/ping');
     return response.data;
   }
 
@@ -108,7 +104,7 @@ class SnapLearnAPIClient {
     return response.data;
   }
 
-  // Video generation endpoint
+  // Video generation endpoint - no timeout to fix timeout issues
   async generateVideo(request: VideoRequest): Promise<VideoResponse> {
     const response = await this.client.post('/api/generate-video', request);
     return response.data;
@@ -225,7 +221,7 @@ class SnapLearnAPIClient {
 
   // Phase 4: Enhanced Video Generation & Analytics
 
-  // Contextual Video Generation
+  // Contextual Video Generation - no timeout to fix timeout issues
   async generateContextualVideo(params: {
     topic: string;
     student_id: string;
@@ -241,7 +237,7 @@ class SnapLearnAPIClient {
     return response.data;
   }
 
-  // Batch Video Generation
+  // Batch Video Generation - no timeout to fix timeout issues
   async createBatchGeneration(request: LearningPathRequest): Promise<{
     batch_id: string;
     message: string;
@@ -304,7 +300,7 @@ class SnapLearnAPIClient {
     return response.data;
   }
 
-  // Advanced Video Features
+  // Advanced Video Features - no timeout to fix timeout issues
   async generateStyledVideo(params: {
     topic: string;
     student_id: string;
@@ -487,18 +483,13 @@ export const api = {
     }
   },
 
-  // Health check with timeout
-  healthCheck: async (timeout: number = 5000): Promise<boolean> => {
-    const originalTimeout = apiClient['client'].defaults.timeout;
-    apiClient.updateTimeout(timeout);
-
+  // Health check - no timeout to fix timeout issues
+  healthCheck: async (): Promise<boolean> => {
     try {
       await apiClient.healthCheck();
       return true;
     } catch (error) {
       return false;
-    } finally {
-      apiClient.updateTimeout(originalTimeout || 60000);
     }
   },
 };
@@ -529,7 +520,7 @@ export const isTimeoutError = (error: any): boolean => {
 
 // Default configurations
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:8000',
+  BASE_URL: '',
   TIMEOUT: 60000,
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,

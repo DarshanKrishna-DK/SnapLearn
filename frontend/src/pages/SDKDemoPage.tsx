@@ -104,8 +104,8 @@ const SDKDemoPage: React.FC = () => {
 import axios from 'axios';
 
 const snapLearnAPI = {
-  baseURL: 'http://localhost:8000',
-  
+  baseURL: '',
+
   async explain(question, studentId = 'demo-student', gradeLevel = '4') {
     const response = await axios.post(\`\${this.baseURL}/api/explain\`, {
       question,
@@ -125,7 +125,7 @@ console.log(explanation.explanation_text);`,
 import requests
 
 class SnapLearnAPI:
-    def __init__(self, base_url="http://localhost:8000"):
+    def __init__(self, base_url="http://127.0.0.1:8000"):
         self.base_url = base_url
     
     def explain(self, question, student_id="demo-student", grade_level="4"):
@@ -143,7 +143,7 @@ explanation = api.explain('${question}')
 print(explanation['explanation_text'])`,
 
     curl: `# cURL Example
-curl -X POST http://localhost:8000/api/explain \\
+curl -X POST http://127.0.0.1:8000/api/explain \\
   -H "Content-Type: application/json" \\
   -d '{
     "question": "${question}",
@@ -199,7 +199,7 @@ curl -X POST http://localhost:8000/api/explain \\
                     onChange={(e) => setGradeLevel(e.target.value as GradeLevel)}
                     className="input-primary"
                   >
-                    {['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].map(grade => (
+                    {['K', '1', '2', '3', '4', '5', '6', '7', '8'].map(grade => (
                       <option key={grade} value={grade}>
                         {grade === 'K' ? 'Kindergarten' : `Grade ${grade}`}
                       </option>
@@ -217,9 +217,13 @@ curl -X POST http://localhost:8000/api/explain \\
                     className="input-primary"
                   >
                     <option value="en">English</option>
+                    <option value="kn">Kannada (kn)</option>
                     <option value="hi">Hindi</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ja">Japanese</option>
                   </select>
                 </div>
               </div>
@@ -436,7 +440,8 @@ curl -X POST http://localhost:8000/api/explain \\
           
           <div className="block p-4 bg-white rounded-lg">
             <h3 className="font-medium text-gray-900 mb-1">Base URL</h3>
-            <p className="text-sm text-gray-600 font-mono">http://localhost:8000</p>
+            <p className="text-sm text-gray-600 font-mono">/ (same origin in Vite dev, uses proxy)</p>
+            <p className="text-xs text-gray-500 mt-1">Direct to API: http://127.0.0.1:8000</p>
           </div>
         </div>
       </div>

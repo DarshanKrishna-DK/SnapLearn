@@ -17,14 +17,37 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        secure: false,
+      },
+      '/health': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
       },
       '/videos': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        secure: false,
       },
       '/static': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        secure: false,
+      },
+      '/outputs': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/docs': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/redoc': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

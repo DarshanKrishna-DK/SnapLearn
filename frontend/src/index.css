@@ -2,6 +2,505 @@
 @tailwind components;
 @tailwind utilities;
 
+/* SnapLearn: maroon + cream only (no accent rainbow) */
+:root {
+  --sl-cream: #fdf5e8;
+  --sl-cream-muted: #f5ebe0;
+  --sl-ink: #1e1b14;
+  --sl-maroon: #8b1538;
+  --sl-maroon-deep: #4a0a1c;
+  --sl-maroon-dark: #1a0a0f;
+  --quest-background: var(--sl-cream);
+  --quest-surface: #fff8f0;
+  --quest-surface-low: #fbf3e6;
+  --quest-surface-high: #e9e2d5;
+  --quest-surface-highest: #e9e2d5;
+  --quest-surface-lowest: #ffffff;
+  --quest-primary: #670024;
+  --quest-primary-container: #8b1538;
+  --quest-on-primary: #ffffff;
+  --quest-on-background: var(--sl-ink);
+  --quest-outline: #8a7174;
+  --quest-outline-variant: #debfc2;
+  /* Progress and highlights use maroon tints, not third colors */
+  --quest-tertiary: #8b1538;
+  --quest-tertiary-container: #4a0a1c;
+  --font-hero: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-kn: 'Noto Sans Kannada', system-ui, sans-serif;
+}
+
+/* Local script labels (Kannada, etc.) */
+.sl-font-local {
+  font-family: var(--font-kn);
+}
+
+/* 3D pixel arcade buttons (Press Start 2P) - landing and themed CTAs */
+.sl-pixel-3d {
+  font-family: var(--font-pixel);
+  font-size: 0.55rem;
+  line-height: 1.45;
+  padding: 0.7rem 1.1rem;
+  border: 2px solid #0f0206;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #a61e48 0%, #7a1234 50%, #4a0a1c 100%);
+  box-shadow:
+    0 2px 0 0 #3d1520 inset,
+    0 5px 0 #140308,
+    0 8px 14px rgba(0, 0, 0, 0.4);
+  color: #fff5eb;
+  text-align: center;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .sl-pixel-3d {
+    font-size: 0.62rem;
+    padding: 0.85rem 1.25rem;
+  }
+}
+
+.sl-pixel-3d:hover {
+  filter: brightness(1.04);
+  transform: translateY(1px);
+  box-shadow:
+    0 2px 0 0 #3d1520 inset,
+    0 4px 0 #140308,
+    0 6px 12px rgba(0, 0, 0, 0.35);
+}
+
+.sl-pixel-3d:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 1px 0 0 #1a060c inset,
+    0 1px 0 #140308,
+    0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.sl-pixel-3d:disabled,
+.sl-pixel-3d[aria-disabled='true'] {
+  opacity: 0.38;
+  pointer-events: none;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+/* Secondary: outlined maroon, still extruded */
+.sl-pixel-3d--outline {
+  background: linear-gradient(180deg, #4f1530 0%, #2d080f 100%);
+  border-color: #8f5c50;
+  color: #f5e0d0;
+  box-shadow:
+    0 2px 0 0 #5c2035 inset,
+    0 4px 0 #0c0204,
+    0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.sl-pixel-3d--sm {
+  font-size: 0.45rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 5px;
+  min-width: 2.4rem;
+}
+
+/* Soft raised panels (curved corners) on maroon */
+.sl-pixel-panel {
+  border-radius: 16px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.08) 0%, rgba(0, 0, 0, 0.2) 100%);
+  border: 2px solid rgba(196, 154, 92, 0.35);
+  box-shadow: 0 6px 0 #1f060c, 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.sl-body {
+  font-family: var(--font-body);
+  background: var(--sl-cream);
+  color: var(--sl-ink);
+}
+
+.sl-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #b89a90;
+}
+
+.sl-hero-title {
+  font-family: var(--font-pixel);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--sl-cream);
+}
+
+@media (min-width: 768px) {
+  .sl-hero-title {
+    font-size: clamp(1.5rem, 2.2vw, 2.5rem);
+  }
+}
+
+.sl-surface-hero {
+  background: var(--sl-maroon-dark);
+  color: var(--sl-cream);
+}
+
+/* SnapLearn Quest Component Classes - The Tactile Arcade */
+
+/* Base Quest Interface */
+.quest-interface {
+  font-family: var(--font-hero);
+  background: var(--quest-background);
+  color: var(--quest-on-background);
+  min-height: 100vh;
+}
+
+/* 3D Quest Buttons */
+.quest-btn-primary {
+  background: linear-gradient(135deg, var(--quest-primary), var(--quest-primary-container));
+  color: var(--quest-on-primary);
+  padding: 16px 32px;
+  font-family: var(--font-hero);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.1s ease;
+  box-shadow: 0 8px 0 var(--quest-primary), 0 12px 24px rgba(139, 21, 56, 0.3);
+}
+
+.quest-btn-primary:hover {
+  transform: translateY(4px);
+  box-shadow: 0 4px 0 var(--quest-primary), 0 8px 16px rgba(139, 21, 56, 0.3);
+}
+
+.quest-btn-primary:active {
+  transform: translateY(8px);
+  box-shadow: 0 0 0 var(--quest-primary), 0 4px 8px rgba(139, 21, 56, 0.3);
+}
+
+.quest-btn-secondary {
+  background: var(--quest-surface-highest);
+  color: var(--quest-on-background);
+  border: 2px solid var(--quest-outline-variant);
+  padding: 16px 32px;
+  font-family: var(--font-hero);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 0 var(--quest-outline), 0 8px 16px rgba(138, 113, 116, 0.2);
+}
+
+.quest-btn-secondary:hover {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--quest-outline), 0 6px 12px rgba(138, 113, 116, 0.2);
+  border-color: var(--quest-outline);
+}
+
+/* 3D Quest Cards */
+.quest-card {
+  background: var(--quest-surface-lowest);
+  border-radius: 12px;
+  padding: 2rem;
+  position: relative;
+  transition: transform 0.2s ease;
+  box-shadow: 
+    0 8px 0 var(--quest-surface-high),
+    0 16px 32px rgba(30, 27, 20, 0.15);
+}
+
+.quest-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 12px 0 var(--quest-surface-high),
+    0 24px 48px rgba(30, 27, 20, 0.2);
+}
+
+.quest-card-large {
+  background: var(--quest-surface-lowest);
+  border-radius: 16px;
+  padding: 3rem;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 12px 0 var(--quest-surface-high),
+    0 24px 48px rgba(30, 27, 20, 0.2);
+}
+
+.quest-card-large:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 16px 0 var(--quest-surface-high),
+    0 32px 64px rgba(30, 27, 20, 0.25);
+}
+
+/* Gaming Navigation */
+.quest-nav {
+  background: rgba(255, 248, 240, 0.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 2px solid var(--quest-outline-variant);
+  padding: 1.5rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.quest-nav-brand {
+  font-family: var(--font-hero);
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: var(--quest-primary-container);
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+
+.quest-nav-brand:hover {
+  transform: scale(1.05);
+  color: var(--quest-primary);
+}
+
+.quest-nav-link {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--quest-on-background);
+  text-decoration: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.quest-nav-link:hover {
+  background: var(--quest-surface-high);
+  transform: translateY(-2px);
+}
+
+.quest-nav-link.active {
+  background: var(--quest-primary-container);
+  color: var(--quest-on-primary);
+}
+
+/* Typography Styles */
+.quest-display {
+  font-family: var(--font-hero);
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  color: var(--quest-on-background);
+}
+
+.quest-headline {
+  font-family: var(--font-hero);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--quest-on-background);
+  text-transform: uppercase;
+}
+
+.quest-title {
+  font-family: var(--font-body);
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--quest-on-background);
+}
+
+.quest-body {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--quest-on-background);
+}
+
+.quest-label {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--quest-outline);
+}
+
+/* Gaming Elements */
+.quest-xp-badge {
+  background: var(--quest-tertiary-container);
+  color: var(--quest-on-primary);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 0 var(--quest-tertiary-container), 0 8px 16px rgba(74, 10, 28, 0.35);
+}
+
+.quest-progress-bar {
+  width: 100%;
+  height: 12px;
+  background: var(--quest-surface-high);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.quest-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--quest-tertiary), var(--quest-tertiary-container));
+  border-radius: 6px;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.quest-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.4), 
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.quest-achievement-badge {
+  width: 48px;
+  height: 48px;
+  background: var(--quest-primary-container);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 4px 0 var(--quest-primary), 0 8px 16px rgba(139, 21, 56, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.quest-achievement-badge:hover {
+  transform: translateY(-2px) rotate(5deg);
+}
+
+/* Input Fields */
+.quest-input {
+  background: var(--quest-surface-highest);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--quest-on-background);
+  width: 100%;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 2px 0 rgba(30, 27, 20, 0.1);
+}
+
+.quest-input:focus {
+  outline: none;
+  border-color: var(--quest-primary-container);
+  box-shadow: 
+    inset 0 2px 0 rgba(30, 27, 20, 0.1),
+    0 0 0 3px rgba(139, 21, 56, 0.2);
+}
+
+.quest-input::placeholder {
+  color: var(--quest-outline);
+  font-style: italic;
+}
+
+/* Code Blocks */
+.quest-code {
+  background: var(--quest-on-background);
+  color: var(--quest-surface);
+  padding: 1.5rem;
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  position: relative;
+  box-shadow: 
+    0 8px 0 rgba(0, 0, 0, 0.3),
+    0 16px 32px rgba(0, 0, 0, 0.4);
+}
+
+.quest-code::before {
+  content: '// Code Quest';
+  position: absolute;
+  top: 0.5rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  color: var(--quest-outline-variant);
+  font-style: italic;
+}
+
+/* SnapLearn AI Marketing Site Custom Styles */
+.scanline-overlay {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+}
+
+.pixel-shadow {
+  box-shadow: 4px 4px 0px 0px #5b4300;
+  transition: all 0.2s ease;
+}
+
+.pixel-shadow:active {
+  box-shadow: 0px 0px 0px 0px #5b4300;
+  transform: translate(4px, 4px);
+}
+
+.diagonal-clip {
+  clip-path: polygon(0 0, 100% 5%, 100% 100%, 0 95%);
+}
+
+.glow-secondary {
+  box-shadow: 0 0 15px rgba(121, 89, 0, 0.2);
+}
+
+.tracking-tightest {
+  letter-spacing: -0.075em;
+}
+
+/* Material Icons Support */
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24;
+}
+
 /* Base styles */
 @layer base {
   html {
@@ -21,7 +520,7 @@
 @layer components {
   /* Button variants */
   .btn-primary {
-    @apply bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply bg-primary-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 active:bg-primary-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
   
   .btn-secondary {
@@ -29,7 +528,7 @@
   }
   
   .btn-outline {
-    @apply border-2 border-primary-600 text-primary-600 px-4 py-2 rounded-lg font-medium hover:bg-primary-50 active:bg-primary-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply border-2 border-primary-500 text-primary-500 px-4 py-2 rounded-lg font-medium hover:bg-primary-50 active:bg-primary-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
   
   .btn-ghost {

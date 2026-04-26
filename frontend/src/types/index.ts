@@ -1,11 +1,10 @@
 // Type definitions for SnapLearn AI Frontend
 
-export type GradeLevel = 
-  | 'K' | '1' | '2' | '3' | '4' | '5' | '6' 
-  | '7' | '8' | '9' | '10' | '11' | '12';
+export type GradeLevel =
+  | 'K' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
 
 export type LanguageCode = 
-  | 'en' | 'hi' | 'es' | 'fr' | 'de' | 'zh' | 'ja';
+  | 'en' | 'hi' | 'es' | 'fr' | 'de' | 'zh' | 'ja' | 'kn';
 
 export type LearningStyle = 
   | 'visual' | 'auditory' | 'kinesthetic' | 'reading_writing' | 'mixed';
@@ -28,6 +27,12 @@ export interface VideoRequest {
   grade_level: GradeLevel;
   language?: LanguageCode;
   duration_preference?: string;
+  /** Target length in minutes (0.5-15) for Manim pacing and TTS */
+  target_duration_minutes?: number;
+  /** Default true: synthesize speech and mux with ffmpeg when available */
+  enable_tts?: boolean;
+  /** Optional teacher or lesson context for script and narration */
+  extra_context?: string;
 }
 
 export interface AssessmentRequest {
@@ -95,6 +100,9 @@ export interface VideoResponse {
   manim_script?: string;
   generation_time_seconds?: number;
   timestamp: string;
+  has_audio?: boolean;
+  tts_engine?: string | null;
+  narration_preview?: string | null;
 }
 
 export interface AssessmentResponse {

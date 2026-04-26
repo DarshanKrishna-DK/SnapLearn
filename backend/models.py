@@ -16,6 +16,7 @@ class LanguageCode(str, Enum):
     GERMAN = "de"
     CHINESE = "zh"
     JAPANESE = "ja"
+    KANNADA = "kn"
 
 class GradeLevel(str, Enum):
     """Grade levels supported"""
@@ -83,7 +84,18 @@ class VideoRequest(BaseModel):
     student_id: str = Field(..., description="Unique student identifier")
     grade_level: GradeLevel = Field(..., description="Student's grade level")
     language: LanguageCode = Field(default=LanguageCode.ENGLISH, description="Video language")
-    duration_preference: Optional[str] = Field("medium", description="Preferred video length")
+    duration_preference: Optional[str] = Field("medium", description="Deprecated: use target_duration_minutes")
+    target_duration_minutes: float = Field(
+        5.0,
+        ge=0.5,
+        le=15.0,
+        description="Target lesson length in minutes (Manim pacing + TTS). Clamped 0.5-15.",
+    )
+    enable_tts: bool = Field(True, description="Synthesize spoken narration and mux with ffmpeg if available")
+    extra_context: Optional[str] = Field(
+        None,
+        description="Optional extra instructions or class context for the script and narration",
+    )
 
 class ContextualVideoRequest(BaseModel):
     """Request model for contextual video generation"""
@@ -142,6 +154,12 @@ class VideoResponse(BaseModel):
     manim_script: Optional[str] = Field(None, description="Generated Manim script")
     generation_time_seconds: Optional[float] = Field(None, description="Time taken to generate")
     timestamp: datetime = Field(default_factory=datetime.now, description="Generation timestamp")
+    has_audio: bool = Field(default=False, description="Whether TTS was muxed into the MP4")
+    tts_engine: Optional[str] = Field(None, description="TTS engine used, e.g. edge-tts or gtts")
+    narration_preview: Optional[str] = Field(
+        None,
+        description="Short preview of the narration that was or would be spoken",
+    )
 
 class AssessmentResponse(BaseModel):
     """Response model for answer assessment"""

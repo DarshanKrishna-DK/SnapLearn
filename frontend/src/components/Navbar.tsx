@@ -9,7 +9,10 @@ import {
   Menu,
   X,
   Globe,
-  GraduationCap
+  GraduationCap,
+  Brain,
+  FileText,
+  LayoutDashboard,
 } from 'lucide-react';
 
 import { GradeLevel, LanguageCode } from '@/types';
@@ -37,38 +40,56 @@ const Navbar: React.FC<NavbarProps> = ({
 
   const navigationItems = [
     {
-      path: '/',
-      label: 'Tutor',
+      path: '/app',
+      label: 'App hub',
+      icon: LayoutDashboard,
+      description: 'Links to tutor, video, and quiz'
+    },
+    {
+      path: '/tutor',
+      label: 'AI Tutor',
       icon: BookOpen,
-      description: 'AI Tutoring with Animated Blackboard'
+      description: 'Blackboard and explanations'
     },
     {
       path: '/videos',
-      label: 'Videos',
+      label: 'Manim video',
       icon: Video,
-      description: 'Generate Educational Videos'
+      description: 'Generate and view lesson video'
+    },
+    {
+      path: '/quiz',
+      label: 'Quiz',
+      icon: Brain,
+      description: 'Adaptive quiz flow'
+    },
+    {
+      path: '/docs',
+      label: 'Docs',
+      icon: FileText,
+      description: 'Documentation'
+    },
+    {
+      path: '/sdk',
+      label: 'SDK',
+      icon: Code,
+      description: 'API reference and ping'
     },
     {
       path: '/profile',
       label: 'Profile',
       icon: User,
-      description: 'Student Learning Profile'
-    },
-    {
-      path: '/sdk-demo',
-      label: 'SDK Demo',
-      icon: Code,
-      description: 'API Integration Example'
+      description: 'Student profile'
     },
   ];
 
   const gradeOptions: GradeLevel[] = [
-    'K', '1', '2', '3', '4', '5', '6', 
-    '7', '8', '9', '10', '11', '12'
+    'K', '1', '2', '3', '4', '5', '6', '7', '8',
   ];
 
   const languageOptions: { code: LanguageCode; name: string }[] = [
     { code: 'en', name: 'English' },
+    { code: 'kn', name: 'Kannada (ಕನ್ನಡ)' },
     { code: 'hi', name: 'हिंदी' },
     { code: 'es', name: 'Español' },
     { code: 'fr', name: 'Français' },
@@ -90,22 +111,25 @@ const Navbar: React.FC<NavbarProps> = ({
   };
 
   const isActivePath = (path: string) => {
+    if (path === '/quiz' && (location.pathname === '/quiz' || location.pathname === '/test')) {
+      return true;
+    }
     return location.pathname === path;
   };
 
   return (
     <>
-      <nav className="bg-white shadow-sm border-b border-gray-200">
+      <nav className="border-b border-[#debfc2] bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             {/* Logo and brand */}
             <div className="flex items-center">
-              <Link to="/" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+              <Link to="/" className="flex items-center space-x-2" title="Home">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#8b1538]">
                   <BookOpen className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold text-gray-900">
-                  SnapLearn AI
+                <span className="text-lg font-semibold text-[#1e1b14]">
+                  SnapLearn
                 </span>
               </Link>
             </div>
@@ -120,10 +144,10 @@ const Navbar: React.FC<NavbarProps> = ({
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center space-x-2 px-2 py-2 rounded-md text-sm font-medium transition-colors ${
                       isActive
-                        ? 'text-primary-600 bg-primary-50'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'bg-[#f5ebe0] text-[#8b1538]'
+                        : 'text-[#3d3834] hover:bg-[#f5ebe0] hover:text-[#1e1b14]'
                     }`}
                     title={item.description}
                   >
@@ -175,8 +199,8 @@ const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium ${
                       isActive
-                        ? 'text-primary-600 bg-primary-50'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'bg-[#f5ebe0] text-[#8b1538]'
+                        : 'text-[#3d3834] hover:bg-[#f5ebe0] hover:text-[#1e1b14]'
                     }`}
                   >
                     <Icon className="w-5 h-5" />

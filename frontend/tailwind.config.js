@@ -7,6 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Existing colors
         primary: {
           50: '#eff6ff',
           100: '#dbeafe',
@@ -54,11 +55,67 @@ export default {
           700: '#374151',
           800: '#1f2937',
           900: '#111827',
-        }
+        },
+        // SnapLearn AI Brand Colors
+        "error": "#ba1a1a",
+        "secondary-fixed-dim": "#eec058",
+        "tertiary": "#17030c",
+        "error-container": "#ffdad6",
+        "surface-container-lowest": "#ffffff",
+        "surface-container": "#f4ede3",
+        "on-primary-container": "#d16871",
+        "background": "#fff8f0",
+        "on-secondary": "#ffffff",
+        "on-surface": "#1e1b16",
+        "on-tertiary-fixed-variant": "#5e3d4b",
+        "tertiary-fixed-dim": "#e7bbcb",
+        "surface-container-low": "#faf3e9",
+        "secondary-container": "#fece65",
+        "on-tertiary-fixed": "#2d131f",
+        "on-primary-fixed": "#40000d",
+        "surface-container-highest": "#e8e2d8",
+        "surface-container-high": "#eee7dd",
+        "outline": "#887272",
+        "secondary-fixed": "#ffdf9f",
+        "on-tertiary-container": "#a47d8c",
+        "surface-variant": "#e8e2d8",
+        "on-error-container": "#93000a",
+        "tertiary-container": "#331824",
+        "inverse-on-surface": "#f7f0e6",
+        "primary-fixed": "#ffdada",
+        "surface-tint": "#9d3f49",
+        "primary-container": "#4a0010",
+        "on-tertiary": "#ffffff",
+        "surface-dim": "#e0d9d0",
+        "surface": "#fff8f0",
+        "on-secondary-fixed-variant": "#5b4300",
+        "outline-variant": "#dbc0c1",
+        "on-secondary-fixed": "#261a00",
+        "on-primary": "#ffffff",
+        // M3 ink (do not use key "primary" here; it overwrites the primary-* scale used by the app UI)
+        "sn-ink": "#1e0003",
+        "tertiary-fixed": "#ffd8e6",
+        "surface-bright": "#fff8f0",
+        "on-primary-fixed-variant": "#7e2833",
+        "on-secondary-container": "#755700",
+        "primary-fixed-dim": "#ffb2b6",
+        "on-surface-variant": "#554243",
+        "inverse-surface": "#33302a",
+        "on-error": "#ffffff",
+        "inverse-primary": "#ffb2b6",
+        "on-background": "#1e1b16"
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['Fira Code', 'Monaco', 'Cascadia Code', 'Segoe UI Mono', 'Roboto Mono', 'monospace'],
+        "headline": ["Space Grotesk", "sans-serif"],
+        "display": ["Space Grotesk", "sans-serif"],
+        "body": ["Inter", "sans-serif"],
+        "label": ["Inter", "sans-serif"],
+      },
+      letterSpacing: {
+        "tightest": "-0.075em",
+        "widest": "0.2em"
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
@@ -67,6 +124,8 @@ export default {
         'bounce-subtle': 'bounceSubtle 2s infinite',
         'pulse-gentle': 'pulseGentle 2s infinite',
         'writing': 'writing 2s ease-in-out infinite',
+        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "bounce-slow": "bounce 3s infinite"
       },
       keyframes: {
         fadeIn: {

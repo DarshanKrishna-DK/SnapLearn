@@ -16,6 +16,12 @@ from pathlib import Path
 
 from models import VideoResponse, StudentProfile
 from utils import schedule_async_init
+from video_narration import (
+    generate_narration_text,
+    synthesize_speech_to_file,
+    mux_video_audio,
+    ffmpeg_invoked,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,26 +73,29 @@ STUDENT CONTEXT:
 - Grade Level: {grade_level}
 - Topic: {topic}
 - Language: {language}
+- Target on-screen video length: about {target_duration_minutes} minutes (this is a goal; use run_time and self.wait to pace)
+- Number of main segments to teach: {section_count} (each segment should be clearly separated with a short pause)
 - Student Learning Profile: {student_profile_summary}
+- Optional pacing hint (spoken script summary): {narration_excerpt}
+- Optional extra context from the user/teacher: {extra_context}
 
 REQUIREMENTS:
 1. Create a complete Manim scene script for grade {grade_level}
 2. Use only Manim Community Edition v0.18+ APIs
 3. The script must be syntactically correct Python
-4. Include engaging animations appropriate for the grade level
+4. For longer videos ({target_duration_minutes} min target), you MUST add enough segments, examples, and self.wait() / run_time so the animation is not over in a few seconds
 5. Use simple vocabulary for lower grades, more advanced for higher grades
 6. Include worked examples where relevant
 
 MANIM SCRIPT REQUIREMENTS:
-- Extend the Scene class
-- Include title card opening
-- Divide explanation into 4-6 distinct animation scenes
-- Use MathTex for mathematical notation
-- Use Write() for text animations and Create() for shapes
-- Include at least one step-by-step worked example
-- Set appropriate self.wait() between scenes
-- End with a summary slide
-- Use colors that are engaging but not overwhelming
+- Extend the Scene class (class name must be ExplanationScene)
+- Include a title card opening
+- Divide the lesson into {section_count} clear segments (intro, concepts, example(s), summary)
+- Use MathTex for mathematical notation where appropriate; Text for plain language
+- Use Write() for text animations and Create() for shapes; FadeOut to transition
+- Set self.wait() and animation run_time so total scene length aims toward the target minutes (e.g. multiple 15-40s segments, not 2s total)
+- End with a short recap
+- Use readable colors (e.g. WHITE, YELLOW, BLUE, GREEN on dark background)
 
 RESPONSE FORMAT:
 Return ONLY the Python code for the Manim scene, no explanations or markdown.
@@ -108,7 +117,7 @@ class ExplanationScene(Scene):
         # Summary scene...
 ```
 
-Generate the Manim script for topic: {topic}"""
+Generate the Manim script for topic: {topic} with approximate length target {target_duration_minutes} minutes."""
         
         # Save the prompt template
         prompt_file = self.prompts_dir / "manim_scene.txt"
@@ -118,36 +127,115 @@ Generate the Manim script for topic: {topic}"""
         
         self.manim_prompt_template = prompt_template
     
-    async def generate_video(self, topic: str, grade_level: str, 
-                           student_profile: StudentProfile, language: str = "en") -> VideoResponse:
-        """Generate educational video for given topic"""
+    @staticmethod
+    def _section_count_for_duration(target_minutes: float) -> int:
+        t = max(0.5, min(15.0, float(target_minutes or 5.0)))
+        return max(4, min(20, int(3 + t * 1.15)))
+
+    async def generate_video(
+        self,
+        topic: str,
+        grade_level: str,
+        student_profile: StudentProfile,
+        language: str = "en",
+        target_duration_minutes: float = 5.0,
+        enable_tts: bool = True,
+        extra_context: Optional[str] = None,
+    ) -> VideoResponse:
+        """Generate educational video for given topic, optional TTS, configurable length target."""
         try:
-            logger.info(f"Starting video generation for topic: {topic}")
-            
-            # Generate Manim script using Gemini
+            tmin = max(0.5, min(15.0, float(target_duration_minutes or 5.0)))
+            logger.info("Starting video generation for topic: %s (target ~%s min, tts=%s)", topic, tmin, enable_tts)
+
+            narration_text = ""
+            if enable_tts and self.gemini_client:
+                narration_text = await generate_narration_text(
+                    self.gemini_client,
+                    self.model_name,
+                    topic,
+                    str(grade_level),
+                    language,
+                    tmin,
+                    extra_context=extra_context,
+                )
+            if (narration_text or "").strip():
+                excerpt = (narration_text[:800] + "…") if len(narration_text) > 800 else narration_text
+            else:
+                excerpt = f"Narration disabled or unavailable. Teach {topic} for grade {grade_level} with depth suitable for a ~{tmin} minute lesson."
             manim_script = await self._generate_manim_script(
-                topic, grade_level, student_profile, language
+                topic,
+                grade_level,
+                student_profile,
+                language,
+                target_duration_minutes=tmin,
+                extra_context=extra_context,
+                narration_excerpt=excerpt,
             )
-            
+
             if not manim_script:
                 raise Exception("Failed to generate Manim script")
-            
-            # Validate the script
+
             if not self._validate_manim_script(manim_script):
-                # Try to fix the script
                 manim_script = await self._fix_manim_script(manim_script, topic)
-            
-            # Create video using Manim
-            video_info = await self._render_manim_video(manim_script, topic)
-            
+
+            video_info = await self._render_manim_video(manim_script, topic, target_duration_minutes=tmin)
+            lp = video_info.pop("local_video_path", None)
+            vpath = Path(lp) if isinstance(lp, str) else (lp if isinstance(lp, Path) else None)
+
+            has_audio = False
+            tts_engine = None
+            if (
+                enable_tts
+                and narration_text
+                and vpath
+                and vpath.is_file()
+                and ffmpeg_invoked()
+            ):
+                audio_path = vpath.parent / f"{vpath.stem}_narration.mp3"
+                out_path = vpath.parent / f"{vpath.stem}_with_audio.mp4"
+                t_ok, tts_engine = await synthesize_speech_to_file(narration_text, language, audio_path)
+                if t_ok and mux_video_audio(vpath, audio_path, out_path):
+                    has_audio = True
+                    try:
+                        if vpath.is_file():
+                            vpath.unlink()
+                    except OSError:
+                        pass
+                    try:
+                        if audio_path.is_file():
+                            audio_path.unlink()
+                    except OSError:
+                        pass
+                    video_name = out_path.name
+                    video_info["video_url"] = f"/videos/{video_name}"
+                    if video_info.get("duration_seconds") is None or video_info.get("duration_seconds", 0) < 0.1:
+                        video_info["duration_seconds"] = await self._get_video_duration(out_path)
+                    if video_info.get("file_size_mb") is not None and out_path.is_file():
+                        video_info["file_size_mb"] = round(out_path.stat().st_size / (1024 * 1024), 2)
+            elif enable_tts and not ffmpeg_invoked():
+                logger.warning("TTS enabled but ffmpeg missing; video stays silent")
+            elif enable_tts and not narration_text:
+                logger.warning("TTS enabled but no narration text produced")
+
+            video_info["has_audio"] = has_audio
+            video_info["tts_engine"] = tts_engine
+            video_info["narration_preview"] = (narration_text[:500] + "…") if len(narration_text) > 500 else (narration_text or None)
+
             return VideoResponse(**video_info)
-            
         except Exception as e:
             logger.error(f"Error generating video: {str(e)}")
             return self._create_fallback_video_response(topic, str(e))
     
-    async def _generate_manim_script(self, topic: str, grade_level: str, 
-                                   student_profile: StudentProfile, language: str) -> str:
+    async def _generate_manim_script(
+        self,
+        topic: str,
+        grade_level: str,
+        student_profile: StudentProfile,
+        language: str,
+        target_duration_minutes: float = 5.0,
+        extra_context: Optional[str] = None,
+        narration_excerpt: str = "none",
+    ) -> str:
         """Generate Manim script using Gemini API"""
         try:
             if not self.gemini_client:
@@ -159,12 +247,20 @@ Generate the Manim script for topic: {topic}"""
                 "confusion_areas": list(student_profile.confusion_patterns.keys())[:3],
                 "success_areas": list(student_profile.success_patterns.keys())[:3]
             }
+            tmin = max(0.5, min(15.0, float(target_duration_minutes or 5.0)))
+            sc = self._section_count_for_duration(tmin)
+            ex = (extra_context or "").strip() or "none"
             
             # Format the prompt
+            ne = (narration_excerpt or "none").replace("{", "{{").replace("}", "}}")
             prompt = self.manim_prompt_template.format(
                 topic=topic,
                 grade_level=grade_level,
                 language=language,
+                target_duration_minutes=round(tmin, 1),
+                section_count=sc,
+                narration_excerpt=ne,
+                extra_context=ex.replace("{", "{{").replace("}", "}}")[:4000],
                 student_profile_summary=json.dumps(profile_summary)
             )
             
@@ -313,9 +409,17 @@ class ExplanationScene(Scene):
         # End
         self.play(FadeOut(summary))'''
     
-    async def _render_manim_video(self, script: str, topic: str) -> Dict[str, Any]:
+    async def _render_manim_video(
+        self,
+        script: str,
+        topic: str,
+        target_duration_minutes: float = 5.0,
+    ) -> Dict[str, Any]:
         """Render video using Manim subprocess"""
         try:
+            tmin = max(0.5, min(15.0, float(target_duration_minutes or 5.0)))
+            # Scale render cap with requested length (up to 20 min wall clock for very long scene graphs)
+            render_timeout = int(min(1200, max(300, 180 + tmin * 90)))
             # Create unique filenames
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             script_filename = f"scene_{timestamp}.py"
@@ -342,7 +446,7 @@ class ExplanationScene(Scene):
             start_time = datetime.now()
             
             # Run Manim subprocess
-            logger.info(f"Running Manim command: {' '.join(manim_cmd)}")
+            logger.info(f"Running Manim command: {' '.join(manim_cmd)} (timeout {render_timeout}s)")
             
             # Wait for completion with timeout
             try:
@@ -352,13 +456,13 @@ class ExplanationScene(Scene):
                     cwd=self.temp_dir,
                     capture_output=True,
                     text=True,
-                    timeout=300
+                    timeout=render_timeout
                 )
                 stdout = result.stdout
                 stderr = result.stderr
                 returncode = result.returncode
             except subprocess.TimeoutExpired:
-                raise Exception("Manim rendering timed out after 5 minutes")
+                raise Exception("Manim rendering timed out; try a shorter target duration or simplify the topic")
             
             # Calculate generation time
             generation_time = (datetime.now() - start_time).total_seconds()
@@ -397,7 +501,11 @@ class ExplanationScene(Scene):
                 "duration_seconds": video_duration,
                 "file_size_mb": round(file_size_mb, 2),
                 "manim_script": script,
-                "generation_time_seconds": round(generation_time, 2)
+                "generation_time_seconds": round(generation_time, 2),
+                "local_video_path": str(video_file),
+                "has_audio": False,
+                "tts_engine": None,
+                "narration_preview": None,
             }
             
         except Exception as e:
@@ -466,7 +574,10 @@ class ExplanationScene(Scene):
             duration_seconds=None,
             file_size_mb=None,
             manim_script=f"# Video generation failed: {error}",
-            generation_time_seconds=0.0
+            generation_time_seconds=0.0,
+            has_audio=False,
+            tts_engine=None,
+            narration_preview=None,
         )
     
     def is_healthy(self) -> bool:
